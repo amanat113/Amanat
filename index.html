@@ -1005,6 +1005,35 @@ document.querySelectorAll('.tab').forEach(tab=>tab.onclick=function(){ designTab
                 const sw=new Blob(["self.addEventListener('install',e=>self.skipWaiting());self.addEventListener('activate',e=>e.waitUntil(clients.claim()));self.addEventListener('fetch',e=>e.respondWith(fetch(e.request).catch(()=>caches.match(e.request))));"],{type:'application/javascript'});
                 navigator.serviceWorker.register(URL.createObjectURL(sw)).catch(()=>{});
             }
+        // ========== EXTERNAL FEATURE LOADER ==========
+// Expose key functions/objects globally so custom.js can use them
+window.TailorApp = {
+    orders: orders,
+    tailors: tailors,
+    prices: prices,
+    workLogs: workLogs,
+    designs: designs,
+    navigate: navigate,
+    showToast: showToast,
+    openModal: openModal,
+    closeModal: closeModal,
+    status: status,
+    cntCompleted: cntCompleted,
+    cntDelivered: cntDelivered,
+    cntReady: cntReady,
+    esc: esc,
+    persist: persist,
+    genId: genId,
+    refreshHome: refreshHome
+};
+
+// Dynamically load custom features (if file exists)
+var customScript = document.createElement('script');
+customScript.src = './custom.js';
+customScript.onerror = function() {
+    console.log('No custom features file found – running base app.');
+};
+document.head.appendChild(customScript);
         })();
     </script>
 </body>
