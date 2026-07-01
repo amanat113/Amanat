@@ -1,0 +1,1010 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#1C1917">
+    <title>Tailor Shop Manager Pro - Realtime DB</title>
+    <!-- Firebase SDK (Realtime Database) -->
+    <script>
+        let firebaseApp = null;
+        let realtimeDB = null;
+        let firebaseReady = false;
+
+        function initFirebase(config) {
+            return new Promise((resolve, reject) => {
+                if (firebaseReady) { resolve(); return; }
+                const scripts = [
+                    'https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js',
+                    'https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js'
+                ];
+                let loaded = 0;
+                scripts.forEach(src => {
+                    const script = document.createElement('script');
+                    script.src = src;
+                    script.onload = () => {
+                        loaded++;
+                        if (loaded === scripts.length) {
+                            try {
+                                firebaseApp = firebase.initializeApp(config, 'tailorShopApp');
+                                realtimeDB = firebase.database(firebaseApp);
+                                firebaseReady = true;
+                                resolve();
+                            } catch (e) {
+                                reject(e);
+                            }
+                        }
+                    };
+                    script.onerror = () => reject(new Error('Failed to load Firebase SDK'));
+                    document.head.appendChild(script);
+                });
+            });
+        }
+    </script>
+    <style>
+        :root {
+            --bg: #FEF9F4;
+            --card: #FFFFFF;
+            --accent: #C69963;
+            --accent-light: #F5E1CE;
+            --accent-dark: #A67B4A;
+            --text: #1C1917;
+            --text-secondary: #64748B;
+            --border: #E2E8F0;
+            --danger: #B91C1C;
+            --danger-light: #FEE2E2;
+            --success: #0D9488;
+            --success-light: #D1FAE5;
+            --warning: #D97706;
+            --warning-light: #FEF3C7;
+            --info: #3B82F6;
+            --info-light: #DBEAFE;
+            --header-bg: #1C1917;
+            --nav-bg: #FFFFFF;
+            --shadow: 0 4px 15px rgba(0, 0, 0, 0.04);
+            --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.08);
+            --radius: 22px;
+            --radius-sm: 16px;
+            --radius-xs: 12px;
+            --nav-height: 78px;
+            --header-height: 56px;
+            --font: 'Inter', system-ui, -apple-system, sans-serif;
+            --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        html { font-size:16px; -webkit-tap-highlight-color:transparent; scroll-behavior:smooth; }
+        body {
+            font-family:var(--font); background:var(--bg); color:var(--text); line-height:1.5;
+            min-height:100vh; min-height:100dvh; max-width:500px; margin:0 auto; position:relative;
+            overflow-x:hidden; padding-top:var(--header-height); padding-bottom:calc(var(--nav-height) + 20px);
+            -webkit-font-smoothing:antialiased;
+        }
+        .header {
+            position:fixed; top:0; left:50%; transform:translateX(-50%); width:100%; max-width:500px;
+            height:var(--header-height); background:var(--header-bg); display:flex; align-items:center;
+            justify-content:space-between; padding:0 16px; z-index:100; box-shadow:0 2px 12px rgba(0,0,0,0.15);
+        }
+        .header-btn {
+            width:40px; height:40px; border-radius:50%; border:none; cursor:pointer; display:flex;
+            align-items:center; justify-content:center; font-size:1.2rem; transition:var(--transition);
+            background:transparent; color:#fff; -webkit-tap-highlight-color:transparent;
+        }
+        .header-btn:active { transform:scale(0.9); opacity:0.7; }
+        .header-btn.gear-btn { background:var(--accent); color:#fff; width:38px; height:38px; font-size:1rem; }
+        .drawer-overlay {
+            position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:200;
+            opacity:0; pointer-events:none; transition:opacity var(--transition); backdrop-filter:blur(2px);
+            -webkit-backdrop-filter:blur(2px);
+        }
+        .drawer-overlay.open { opacity:1; pointer-events:auto; }
+        .drawer {
+            position:fixed; top:0; left:0; width:280px; height:100%; height:100dvh; background:#fff; z-index:201;
+            transform:translateX(-100%); transition:transform var(--transition); box-shadow:var(--shadow-lg);
+            padding:24px 20px; display:flex; flex-direction:column; gap:12px;
+        }
+        .drawer.open { transform:translateX(0); }
+        .drawer-title { font-size:1.1rem; font-weight:700; color:var(--text); margin-bottom:8px; padding-bottom:12px; border-bottom:1px solid var(--border); }
+        .drawer-item {
+            padding:14px 18px; border-radius:var(--radius-sm); cursor:pointer; font-weight:600; font-size:0.95rem;
+            color:var(--text); transition:var(--transition); background:var(--bg); border:1px solid transparent;
+            -webkit-tap-highlight-color:transparent; user-select:none;
+        }
+        .drawer-item:active { background:var(--accent-light); border-color:var(--accent); transform:scale(0.97); }
+        .bottom-nav {
+            position:fixed; bottom:0; left:50%; transform:translateX(-50%); width:100%; max-width:500px;
+            height:var(--nav-height); background:var(--nav-bg); display:flex; align-items:center;
+            justify-content:space-around; z-index:100; box-shadow:0 -4px 20px rgba(0,0,0,0.06);
+            padding:0 8px; padding-bottom:env(safe-area-inset-bottom,0px);
+        }
+        .nav-item {
+            display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px;
+            cursor:pointer; -webkit-tap-highlight-color:transparent; user-select:none; transition:var(--transition);
+            position:relative; min-width:50px; min-height:50px;
+        }
+        .nav-circle {
+            width:38px; height:38px; border-radius:50%; border:2px solid var(--border); display:flex;
+            align-items:center; justify-content:center; font-weight:700; font-size:0.8rem; color:var(--text-secondary);
+            transition:var(--transition); background:#fff; letter-spacing:0.5px;
+        }
+        .nav-item.active .nav-circle { background:var(--accent); border-color:var(--accent); color:#fff; box-shadow:0 4px 12px rgba(198,153,99,0.35); }
+        .nav-label { font-size:0.6rem; font-weight:600; text-transform:uppercase; letter-spacing:0.8px; color:var(--text-secondary); transition:var(--transition); }
+        .nav-item.active .nav-label { color:var(--accent); }
+        .fab {
+            width:56px; height:56px; border-radius:50%; background:var(--accent); color:#fff; border:none;
+            font-size:1.6rem; cursor:pointer; display:flex; align-items:center; justify-content:center;
+            box-shadow:0 6px 20px rgba(198,153,99,0.45); transition:var(--transition); position:relative;
+            top:-16px; -webkit-tap-highlight-color:transparent; z-index:5; flex-shrink:0;
+        }
+        .fab:active { transform:scale(0.9); }
+        .page { display:none; padding:16px 14px; animation:fadeIn 0.3s ease; }
+        .page.active { display:block; }
+        @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+        .card {
+            background:var(--card); border-radius:var(--radius); padding:16px 18px; box-shadow:var(--shadow);
+            margin-bottom:14px; border:1px solid var(--border); transition:var(--transition); position:relative;
+        }
+        .summary-card { background:linear-gradient(135deg, #2D2418 0%, #3D3224 40%, #4A3D2E 100%); color:#fff; border:none; box-shadow:var(--shadow-lg); padding:20px 18px; }
+        .summary-card .stats { display:flex; gap:20px; flex-wrap:wrap; }
+        .summary-card .stat { flex:1; min-width:80px; text-align:center; }
+        .summary-card .stat-value { font-size:2rem; font-weight:800; color:var(--accent); letter-spacing:-1px; }
+        .summary-card .stat-label { font-size:0.7rem; text-transform:uppercase; letter-spacing:1.2px; color:#CBB9A0; }
+        input[type="text"],input[type="number"],input[type="date"],input[type="url"],input[type="tel"],select,textarea {
+            width:100%; padding:13px 16px; border-radius:var(--radius-sm); border:1.5px solid var(--border);
+            background:#FEFCF9; font-family:var(--font); font-size:0.9rem; color:var(--text);
+            transition:var(--transition); outline:none; -webkit-appearance:none; appearance:none;
+        }
+        input:focus,select:focus,textarea:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(198,153,99,0.08); background:#fff; }
+        textarea { resize:vertical; min-height:70px; }
+        select {
+            background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M6 8L1 3h10z' fill='%2364748B'/%3E%3C/svg%3E");
+            background-repeat:no-repeat; background-position:right 14px center; padding-right:36px;
+        }
+        label { font-size:0.7rem; text-transform:uppercase; letter-spacing:0.8px; font-weight:700; color:var(--text-secondary); margin-bottom:4px; display:block; }
+        .btn {
+            padding:13px 22px; border-radius:var(--radius-sm); border:none; cursor:pointer; font-weight:700;
+            font-size:0.85rem; text-transform:uppercase; letter-spacing:0.6px; transition:var(--transition);
+            -webkit-tap-highlight-color:transparent; font-family:var(--font); display:inline-flex;
+            align-items:center; justify-content:center; gap:6px; user-select:none;
+        }
+        .btn:active { transform:scale(0.95); }
+        .btn-primary { background:var(--accent); color:#fff; box-shadow:0 4px 14px rgba(198,153,99,0.3); }
+        .btn-danger { background:var(--danger); color:#fff; }
+        .btn-outline { background:#fff; color:var(--accent); border:2px solid var(--accent); }
+        .btn-info { background:var(--info); color:#fff; }
+        .btn-sm { padding:8px 14px; font-size:0.7rem; border-radius:var(--radius-xs); }
+        .btn-block { width:100%; justify-content:center; }
+        .badge { display:inline-block; padding:4px 10px; border-radius:20px; font-size:0.6rem; font-weight:700; text-transform:uppercase; letter-spacing:0.8px; }
+        .badge-pending { background:var(--warning-light); color:var(--warning); }
+        .badge-ready { background:var(--success-light); color:var(--success); }
+        .badge-delivered { background:#E2E8F0; color:#64748B; }
+        .toast-container { position:fixed; top:16px; left:50%; transform:translateX(-50%); z-index:999; display:flex; flex-direction:column; gap:8px; pointer-events:none; width:90%; max-width:400px; }
+        .toast { background:#1C1917; color:#fff; padding:12px 20px; border-radius:var(--radius-sm); font-size:0.85rem; font-weight:600; text-align:center; box-shadow:var(--shadow-lg); animation:slideDown 0.35s ease, fadeOut 0.35s ease 1.65s forwards; pointer-events:auto; }
+        @keyframes slideDown { from { transform:translateY(-60px); opacity:0; } to { transform:translateY(0); opacity:1; } }
+        @keyframes fadeOut { to { opacity:0; transform:translateY(-20px); } }
+        .modal-overlay {
+            position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.55); z-index:300;
+            display:flex; align-items:flex-end; justify-content:center; opacity:0; pointer-events:none;
+            transition:opacity var(--transition); backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px);
+        }
+        .modal-overlay.open { opacity:1; pointer-events:auto; }
+        .modal {
+            background:#fff; border-radius:24px 24px 0 0; width:100%; max-width:500px; max-height:88vh;
+            max-height:88dvh; overflow-y:auto; padding:20px 16px 28px; box-shadow:0 -8px 30px rgba(0,0,0,0.15);
+            transform:translateY(100%); transition:transform var(--transition);
+        }
+        .modal-overlay.open .modal { transform:translateY(0); }
+        .modal-handle { width:40px; height:4px; background:#D1D5DB; border-radius:2px; margin:0 auto 16px; }
+        .modal-title { font-size:1.15rem; font-weight:800; color:var(--text); margin-bottom:16px; text-align:center; }
+        .lightbox {
+            position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.92); z-index:400;
+            display:flex; align-items:center; justify-content:center; opacity:0; pointer-events:none; transition:opacity 0.3s;
+        }
+        .lightbox.open { opacity:1; pointer-events:auto; }
+        .lightbox img { max-width:92%; max-height:92%; object-fit:contain; border-radius:8px; transition:transform 0.3s; user-select:none; }
+        .lightbox-close { position:absolute; top:20px; right:20px; color:#fff; font-size:1.8rem; cursor:pointer; z-index:5; width:44px; height:44px; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,0.1); border-radius:50%; }
+        .tabs { display:flex; gap:4px; background:#F1F5F9; border-radius:var(--radius-sm); padding:4px; margin-bottom:14px; }
+        .tab { flex:1; padding:10px; text-align:center; border-radius:12px; cursor:pointer; font-weight:600; font-size:0.8rem; transition:var(--transition); -webkit-tap-highlight-color:transparent; user-select:none; color:var(--text-secondary); }
+        .tab.active { background:#fff; color:var(--accent); box-shadow:0 1px 3px rgba(0,0,0,0.06); }
+        .order-card { position:relative; }
+        .order-card .edit-btn { position:absolute; top:12px; right:12px; width:32px; height:32px; border-radius:50%; background:#F8F6F2; border:1px solid var(--border); cursor:pointer; font-size:0.85rem; display:flex; align-items:center; justify-content:center; transition:var(--transition); }
+        .order-card .info-row { display:flex; justify-content:space-between; flex-wrap:wrap; gap:6px; font-size:0.85rem; color:var(--text-secondary); }
+        .order-card .info-row span { font-weight:600; color:var(--text); }
+        .order-card .thumb { width:50px; height:50px; border-radius:10px; object-fit:cover; cursor:pointer; border:2px solid var(--border); margin-top:6px; }
+        .slip-number { font-weight:800; font-size:1rem; color:var(--text); letter-spacing:-0.3px; }
+        .checkbox-list { list-style:none; display:flex; flex-direction:column; gap:8px; }
+        .checkbox-list li { display:flex; align-items:center; gap:10px; padding:10px 14px; background:#FEFCF9; border-radius:var(--radius-xs); border:1px solid var(--border); cursor:pointer; transition:var(--transition); user-select:none; }
+        .checkbox-list li.checked { background:var(--success-light); border-color:var(--success); }
+        .checkbox-list input[type="checkbox"] { width:20px; height:20px; accent-color:var(--success); cursor:pointer; }
+        .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+        .design-card { background:#fff; border-radius:var(--radius-sm); overflow:hidden; box-shadow:var(--shadow); cursor:pointer; transition:var(--transition); border:2px solid transparent; }
+        .design-card:active { border-color:var(--accent); transform:scale(0.96); }
+        .design-card img { width:100%; height:120px; object-fit:cover; }
+        .design-card .design-title { padding:8px 10px; font-size:0.75rem; font-weight:600; text-align:center; }
+        .empty-state { text-align:center; padding:40px 20px; color:var(--text-secondary); }
+        .empty-state .icon { font-size:3rem; margin-bottom:12px; }
+        .search-bar { display:flex; gap:8px; margin-bottom:14px; }
+        .search-bar input { flex:1; }
+        ::-webkit-scrollbar { width:4px; }
+        ::-webkit-scrollbar-track { background:transparent; }
+        ::-webkit-scrollbar-thumb { background:#D1D5DB; border-radius:4px; }
+        .divider { border-top:1px solid var(--border); margin:14px 0; }
+        .text-center { text-align:center; }
+        .mt-2 { margin-top:8px; }
+        .mt-3 { margin-top:14px; }
+        .mb-2 { margin-bottom:8px; }
+        .mb-3 { margin-bottom:14px; }
+        .flex-row { display:flex; gap:8px; flex-wrap:wrap; }
+        .w-full { width:100%; }
+        .toggle-switch { position:relative; display:inline-block; width:50px; height:28px; }
+        .toggle-switch input { opacity:0; width:0; height:0; }
+        .toggle-slider { position:absolute; cursor:pointer; top:0; left:0; right:0; bottom:0; background-color:#ccc; transition:0.3s; border-radius:28px; }
+        .toggle-slider:before { position:absolute; content:""; height:22px; width:22px; left:3px; bottom:3px; background-color:white; transition:0.3s; border-radius:50%; }
+        input:checked+.toggle-slider { background-color:var(--accent); }
+        input:checked+.toggle-slider:before { transform:translateX(22px); }
+        .cloud-status { display:flex; align-items:center; gap:6px; font-size:0.75rem; padding:6px 10px; border-radius:20px; margin-top:4px; }
+        .cloud-status.online { background:var(--success-light); color:var(--success); }
+        .cloud-status.offline { background:#F1F5F9; color:var(--text-secondary); }
+        .cloud-status.syncing { background:var(--info-light); color:var(--info); }
+        @media (min-width:500px) {
+            body { border-left:1px solid var(--border); border-right:1px solid var(--border); }
+            .header,.bottom-nav { border-left:1px solid var(--border); border-right:1px solid var(--border); }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <button class="header-btn" id="hamburgerBtn">☰</button>
+        <button class="header-btn gear-btn" id="settingsBtn">⚙️</button>
+    </header>
+
+    <div class="drawer-overlay" id="drawerOverlay"></div>
+    <div class="drawer" id="drawer">
+        <div class="drawer-title">☰ Menu</div>
+        <div class="drawer-item" data-action="calculator">🧮 Calculator</div>
+        <div class="drawer-item" data-action="tailor">👔 Tailor Management</div>
+        <div class="drawer-item" data-action="deliveredHistory">📦 Delivered History</div>
+    </div>
+
+    <div class="toast-container" id="toastContainer"></div>
+
+    <div class="page active" id="homePage">
+        <div class="summary-card card">
+            <div class="stats">
+                <div class="stat"><div class="stat-value" id="totalOrdersCount">0</div><div class="stat-label">Total Orders</div></div>
+                <div class="stat"><div class="stat-value" id="activeOrdersCount">0</div><div class="stat-label">Active</div></div>
+            </div>
+        </div>
+        <div class="search-bar">
+            <input type="text" id="homeSearch" placeholder="Search by Slip Number...">
+            <button class="btn btn-outline btn-sm" id="homeSearchClear">✕</button>
+        </div>
+        <div id="ordersList"></div>
+        <div class="empty-state" id="emptyHome"><div class="icon">📋</div><p>No active orders</p></div>
+    </div>
+
+    <div class="page" id="progressPage">
+        <h3 style="margin-bottom:12px;font-weight:800;">📊 Order Progress</h3>
+        <div class="search-bar">
+            <input type="text" id="progressSearch" placeholder="Enter Slip Number...">
+            <button class="btn btn-primary btn-sm" id="progressSearchBtn">Search</button>
+        </div>
+        <div id="progressResult"></div>
+    </div>
+
+    <div class="page" id="deliveryPage">
+        <h3 style="margin-bottom:12px;font-weight:800;">🚚 Delivery</h3>
+        <div class="search-bar">
+            <input type="text" id="deliverySearch" placeholder="Enter Slip Number...">
+            <button class="btn btn-primary btn-sm" id="deliverySearchBtn">Search</button>
+        </div>
+        <div id="deliveryResult"></div>
+    </div>
+
+    <div class="page" id="deliveredHistoryPage">
+        <h3 style="margin-bottom:12px;font-weight:800;">📦 Delivered History</h3>
+        <div class="search-bar">
+            <input type="text" id="historySearch" placeholder="Enter Slip Number...">
+            <button class="btn btn-primary btn-sm" id="historySearchBtn">Search</button>
+        </div>
+        <div id="historyResult"></div>
+    </div>
+
+    <div class="page" id="designsPage">
+        <h3 style="margin-bottom:12px;font-weight:800;">🎨 Designs</h3>
+        <div class="tabs">
+            <div class="tab active" data-tab="saved">Saved Designs</div>
+            <div class="tab" data-tab="web">Web Search</div>
+        </div>
+        <div id="designsTabContent"></div>
+    </div>
+
+    <div class="page" id="tailorPage">
+        <h3 style="margin-bottom:12px;font-weight:800;">👔 Tailor Management</h3>
+        <div id="tailorContent"></div>
+    </div>
+
+    <div class="page" id="settingsPage">
+        <h3 style="margin-bottom:12px;font-weight:800;">⚙️ Settings</h3>
+        <div class="card">
+            <strong>📁 Local Backup</strong>
+            <button class="btn btn-primary btn-block mt-2 mb-2" id="exportBtn">📥 Export All Data (JSON)</button>
+            <button class="btn btn-outline btn-block mb-2" id="importBtn">📤 Import JSON</button>
+            <input type="file" id="importFileInput" accept=".json" style="display:none;">
+        </div>
+        <div class="card">
+            <strong>🔗 Share Backup Link</strong>
+            <p style="font-size:0.7rem;color:var(--text-secondary);margin-bottom:6px;">Generate a link to share/restore your data on any device</p>
+            <button class="btn btn-info btn-block mb-2" id="shareBackupBtn">🔗 Generate Shareable Link</button>
+            <button class="btn btn-outline btn-block" id="copyBackupBtn" style="display:none;">📋 Copy Link</button>
+            <input type="text" id="shareableLinkInput" readonly style="display:none;margin-top:6px;font-size:0.7rem;word-break:break-all;">
+        </div>
+        <div class="card">
+            <strong>☁️ Cloud Sync (Realtime DB)</strong>
+            <p style="font-size:0.7rem;color:var(--text-secondary);margin-bottom:6px;">Optional: Sync your data across devices via Firebase Realtime Database</p>
+            <label>Firebase Config (JSON)</label>
+            <textarea id="firebaseConfigInput" rows="3" placeholder='{"apiKey":"...","authDomain":"...","databaseURL":"...","projectId":"...","storageBucket":"...","messagingSenderId":"...","appId":"..."}' class="mb-2" style="font-size:0.7rem;"></textarea>
+            <div class="flex-row mb-2">
+                <button class="btn btn-primary btn-sm" id="saveFirebaseConfig">💾 Save Config</button>
+                <button class="btn btn-outline btn-sm" id="testFirebaseConnection">🔌 Test</button>
+            </div>
+            <div id="cloudStatus" class="cloud-status offline">⚪ Not configured</div>
+            <div class="flex-row mt-2">
+                <button class="btn btn-info btn-sm" id="cloudBackupBtn" disabled>☁️ Cloud Backup</button>
+                <button class="btn btn-outline btn-sm" id="cloudRestoreBtn" disabled>☁️ Cloud Restore</button>
+            </div>
+            <div class="flex-row mt-2" style="align-items:center;">
+                <label class="toggle-switch" style="margin:0;">
+                    <input type="checkbox" id="autoSyncToggle">
+                    <span class="toggle-slider"></span>
+                </label>
+                <span style="font-size:0.7rem;">Auto-sync when online</span>
+            </div>
+        </div>
+        <div class="card">
+            <strong style="color:var(--danger);">⚠️ Danger Zone</strong>
+            <button class="btn btn-danger btn-block mt-2" id="clearDataBtn">🗑 Clear All Data</button>
+        </div>
+        <button class="btn btn-outline btn-block mt-3" id="backFromSettings">← Back</button>
+    </div>
+
+    <nav class="bottom-nav">
+        <div class="nav-item active" data-page="home"><div class="nav-circle">H</div><span class="nav-label">Home</span></div>
+        <div class="nav-item" data-page="progress"><div class="nav-circle">P</div><span class="nav-label">Progress</span></div>
+        <button class="fab" id="fabBtn">+</button>
+        <div class="nav-item" data-page="delivery"><div class="nav-circle">D</div><span class="nav-label">Delivery</span></div>
+        <div class="nav-item" data-page="designs"><div class="nav-circle">Ds</div><span class="nav-label">Designs</span></div>
+    </nav>
+
+    <!-- New Order Modal -->
+    <div class="modal-overlay" id="newOrderModalOverlay">
+        <div class="modal">
+            <div class="modal-handle"></div><div class="modal-title">➕ New Order</div>
+            <form id="newOrderForm" autocomplete="off">
+                <label>Slip Number *</label><input type="text" id="noSlip" required class="mb-2">
+                <label>Customer Name *</label><input type="text" id="noName" required class="mb-2">
+                <label>Mobile *</label><input type="tel" id="noMobile" required class="mb-2">
+                <label>Number of Clothes *</label><input type="number" id="noNumClothes" min="1" placeholder="Enter quantity" class="mb-2" required>
+                <label>Measurements</label><textarea id="noMeasurements" rows="2" class="mb-2"></textarea>
+                <label>Total Bill *</label><input type="number" id="noTotalBill" min="0" step="0.01" required class="mb-2">
+                <label>Advance Payment</label><input type="number" id="noAdvance" min="0" step="0.01" value="0" class="mb-2">
+                <div class="divider"></div>
+                <label>📎 Attach Image (optional)</label>
+                <input type="url" id="noImageUrl" placeholder="Paste image URL..." class="mb-2">
+                <select id="noDesignSelect" class="mb-2"><option value="">-- Select from saved designs --</option></select>
+                <input type="file" id="noImageFile" accept="image/*" class="mb-2">
+                <div class="flex-row mt-2">
+                    <button type="button" class="btn btn-outline btn-block" id="noCancel">Cancel</button>
+                    <button type="submit" class="btn btn-primary btn-block">Save Order</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Edit Order Modal -->
+    <div class="modal-overlay" id="editOrderModalOverlay">
+        <div class="modal">
+            <div class="modal-handle"></div><div class="modal-title">✏️ Edit Order</div>
+            <form id="editOrderForm" autocomplete="off">
+                <input type="hidden" id="eoSlipHidden">
+                <label>Slip Number</label><input type="text" id="eoSlip" disabled class="mb-2">
+                <label>Customer Name *</label><input type="text" id="eoName" required class="mb-2">
+                <label>Mobile *</label><input type="tel" id="eoMobile" required class="mb-2">
+                <label>Number of Clothes *</label><input type="number" id="eoNumClothes" min="1" required class="mb-2">
+                <label>Measurements</label><textarea id="eoMeasurements" rows="2" class="mb-2"></textarea>
+                <label>Total Bill *</label><input type="number" id="eoTotalBill" min="0" step="0.01" required class="mb-2">
+                <label>Advance Payment</label><input type="number" id="eoAdvance" min="0" step="0.01" class="mb-2">
+                <label>Change Note *</label><input type="text" id="eoChangeNote" required placeholder="Reason for edit..." class="mb-2">
+                <div class="flex-row mt-2">
+                    <button type="button" class="btn btn-outline btn-block" id="eoCancel">Cancel</button>
+                    <button type="submit" class="btn btn-primary btn-block">Update Order</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Calculator Modal -->
+    <div class="modal-overlay" id="calcModalOverlay">
+        <div class="modal" style="max-width:380px;border-radius:24px;">
+            <div class="modal-handle"></div>
+            <div id="calcDisplay" style="background:#1C1917;color:#fff;padding:16px;border-radius:16px;text-align:right;font-size:2rem;font-weight:300;min-height:60px;word-break:break-all;margin-bottom:12px;">0</div>
+            <div id="calcKeypad" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;"></div>
+        </div>
+    </div>
+
+    <!-- Lightbox -->
+    <div class="lightbox" id="lightbox">
+        <div class="lightbox-close" id="lightboxClose">✕</div>
+        <img src="" id="lightboxImg">
+    </div>
+
+    <!-- Clear Confirm Modal -->
+    <div class="modal-overlay" id="clearConfirmOverlay">
+        <div class="modal" style="border-radius:24px;">
+            <div class="modal-handle"></div>
+            <div class="modal-title" style="color:var(--danger);">⚠️ Delete All Data</div>
+            <p style="text-align:center;font-size:0.85rem;margin-bottom:12px;">Type <strong>DELETE</strong> to confirm</p>
+            <input type="text" id="clearConfirmInput" placeholder="Type DELETE..." class="mb-2">
+            <button class="btn btn-danger btn-block" id="clearConfirmBtn" disabled>🗑 Permanently Delete Everything</button>
+            <button class="btn btn-outline btn-block mt-2" id="clearCancelBtn">Cancel</button>
+        </div>
+    </div>
+
+    <!-- Restore from URL Modal -->
+    <div class="modal-overlay" id="restoreFromUrlOverlay">
+        <div class="modal" style="border-radius:24px;">
+            <div class="modal-handle"></div>
+            <div class="modal-title">📥 Restore Backup</div>
+            <p style="text-align:center;font-size:0.85rem;margin-bottom:12px;">Backup data found in this link. Do you want to restore it?</p>
+            <p style="text-align:center;font-size:0.7rem;color:var(--text-secondary);margin-bottom:12px;">⚠️ This will replace all current data</p>
+            <div class="flex-row">
+                <button class="btn btn-outline btn-block" id="restoreCancelBtn">Cancel</button>
+                <button class="btn btn-primary btn-block" id="restoreConfirmBtn">✅ Restore</button>
+            </div>
+        </div>
+    </div>
+    <script>
+    (function() {
+        // ── DATA STORE ──
+        const STORE = { orders:'ts_orders', tailors:'ts_tailors', prices:'ts_prices', workLogs:'ts_workLogs', designs:'ts_designs' };
+        const load = k => { try { return JSON.parse(localStorage.getItem(k))||[]; } catch { return []; } };
+        const save = (k,v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { showToast('⚠️ Storage full'); } };
+
+        let orders = load(STORE.orders);
+        let tailors = load(STORE.tailors);
+        let prices = load(STORE.prices);
+        let workLogs = load(STORE.workLogs);
+        let designs = load(STORE.designs);
+
+        function persist() {
+            save(STORE.orders,orders); save(STORE.tailors,tailors); save(STORE.prices,prices);
+            save(STORE.workLogs,workLogs); save(STORE.designs,designs);
+            if (autoSyncEnabled && firebaseReady) syncToCloud().catch(()=>{});
+        }
+
+        const genId = () => 'id_'+Date.now()+'_'+Math.random().toString(36).substr(2,6);
+        const status = o => !o.items.length ? 'pending' : o.items.every(i=>i.delivered) ? 'delivered' : o.items.every(i=>i.completed) ? 'ready' : 'pending';
+        const cntCompleted = o => o.items.filter(i=>i.completed).length;
+        const cntDelivered = o => o.items.filter(i=>i.delivered).length;
+        const cntReady = o => o.items.filter(i=>i.completed && !i.delivered).length;
+
+        function showToast(msg) {
+            const c = document.getElementById('toastContainer');
+            const t = document.createElement('div'); t.className='toast'; t.textContent=msg;
+            c.appendChild(t); setTimeout(()=>t.remove(), 2100);
+        }
+        function openModal(id) { document.getElementById(id).classList.add('open'); document.body.style.overflow='hidden'; }
+        function closeModal(id) { document.getElementById(id).classList.remove('open'); document.body.style.overflow=''; }
+
+        // ── CLOUD STORAGE (Realtime DB) ──
+        let firebaseConfig = null;
+        let autoSyncEnabled = false;
+        try { firebaseConfig = JSON.parse(localStorage.getItem('ts_firebase_config')||'null'); } catch { firebaseConfig = null; }
+        autoSyncEnabled = localStorage.getItem('ts_auto_sync') === 'true';
+
+        function saveFirebaseConfigToStorage(config) {
+            localStorage.setItem('ts_firebase_config', JSON.stringify(config));
+            firebaseConfig = config;
+        }
+        function saveAutoSyncSetting(enabled) {
+            localStorage.setItem('ts_auto_sync', enabled);
+            autoSyncEnabled = enabled;
+        }
+
+        async function syncToCloud() {
+            if (!firebaseReady || !realtimeDB) return;
+            const data = { orders, tailors, prices, workLogs, designs, syncedAt: new Date().toISOString() };
+            await realtimeDB.ref('tailor_app/main_data').set(data);
+        }
+
+        async function restoreFromCloud() {
+            if (!firebaseReady || !realtimeDB) throw new Error('Realtime DB not ready');
+            const snapshot = await realtimeDB.ref('tailor_app/main_data').once('value');
+            const data = snapshot.val();
+            if (!data) throw new Error('No cloud backup found');
+            if (data.orders) orders = data.orders;
+            if (data.tailors) tailors = data.tailors||[];
+            if (data.prices) prices = data.prices||[];
+            if (data.workLogs) workLogs = data.workLogs||[];
+            if (data.designs) designs = data.designs||[];
+            persist();
+        }
+
+        async function initializeFirebaseIfConfigured() {
+            if (firebaseConfig && !firebaseReady) {
+                try {
+                    await initFirebase(firebaseConfig);
+                    updateCloudStatus('online', '✅ Connected');
+                    document.getElementById('cloudBackupBtn').disabled = false;
+                    document.getElementById('cloudRestoreBtn').disabled = false;
+                } catch (e) {
+                    updateCloudStatus('offline', '❌ Connection failed');
+                    console.error(e);
+                }
+            } else if (firebaseReady) {
+                updateCloudStatus('online', '✅ Connected');
+            } else {
+                updateCloudStatus('offline', '⚪ Not configured');
+            }
+        }
+
+        function updateCloudStatus(cls, msg) {
+            const el = document.getElementById('cloudStatus');
+            if (el) { el.className = 'cloud-status ' + cls; el.textContent = msg; }
+        }
+
+        // ── SHAREABLE LINK ──
+        function generateShareableLink() {
+            const allData = { orders, tailors, prices, workLogs, designs, version: 1, createdAt: new Date().toISOString() };
+            const json = JSON.stringify(allData);
+            const encoded = btoa(unescape(encodeURIComponent(json)));
+            return window.location.origin + window.location.pathname + '#backup=' + encoded;
+        }
+
+        function parseBackupFromUrl() {
+            const hash = window.location.hash;
+            if (hash.startsWith('#backup=')) {
+                try {
+                    const encoded = hash.replace('#backup=', '');
+                    const json = decodeURIComponent(escape(atob(encoded)));
+                    return JSON.parse(json);
+                } catch (e) { return null; }
+            }
+            return null;
+        }
+
+        function clearBackupFromUrl() {
+            if (window.location.hash.startsWith('#backup=')) history.replaceState(null, '', window.location.pathname);
+        }
+
+        const backupData = parseBackupFromUrl();
+        if (backupData && backupData.orders) window._pendingRestoreData = backupData;
+
+        // ── NAVIGATION ──
+        function navigate(pageId) {
+            document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+            document.getElementById(pageId).classList.add('active');
+            const map = { homePage:'home', progressPage:'progress', deliveryPage:'delivery', designsPage:'designs', deliveredHistoryPage:null, settingsPage:null, tailorPage:null };
+            document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active', n.dataset.page===map[pageId]));
+            window.scrollTo(0,0);
+            if(pageId==='progressPage') { document.getElementById('progressResult').innerHTML=''; document.getElementById('progressSearch').value=''; }
+            if(pageId==='deliveryPage') { document.getElementById('deliveryResult').innerHTML=''; document.getElementById('deliverySearch').value=''; }
+            if(pageId==='deliveredHistoryPage') { document.getElementById('historyResult').innerHTML=''; document.getElementById('historySearch').value=''; }
+            currentPage = pageId;
+            if(pageId==='homePage') refreshHome();
+            if(pageId==='designsPage') refreshDesigns();
+            if(pageId==='tailorPage') refreshTailor();
+            if(pageId==='settingsPage') refreshSettingsPage();
+        }
+        let currentPage = 'homePage', previousPage = 'homePage', selectedDesignUrl = null;
+
+        // Drawer
+        const drawer = document.getElementById('drawer'), drawerOverlay = document.getElementById('drawerOverlay');
+        document.getElementById('hamburgerBtn').onclick = ()=>{ drawer.classList.add('open'); drawerOverlay.classList.add('open'); };
+        drawerOverlay.onclick = ()=>{ drawer.classList.remove('open'); drawerOverlay.classList.remove('open'); };
+        drawer.querySelectorAll('.drawer-item').forEach(item=>item.onclick=()=>{
+            const act = item.dataset.action;
+            drawer.classList.remove('open'); drawerOverlay.classList.remove('open');
+            if(act==='calculator') openModal('calcModalOverlay');
+            if(act==='tailor') { previousPage=currentPage; navigate('tailorPage'); }
+            if(act==='deliveredHistory') { navigate('deliveredHistoryPage'); }
+        });
+
+        // Bottom Nav
+        document.querySelectorAll('.nav-item').forEach(item=>item.onclick=()=>{
+            const pages = { home:'homePage', progress:'progressPage', delivery:'deliveryPage', designs:'designsPage' };
+            navigate(pages[item.dataset.page]);
+        });
+        document.getElementById('fabBtn').onclick = ()=>{ prepNewOrder(); openModal('newOrderModalOverlay'); };
+
+        // ── SETTINGS ──
+        function refreshSettingsPage() {
+            document.getElementById('firebaseConfigInput').value = firebaseConfig ? JSON.stringify(firebaseConfig) : '';
+            document.getElementById('autoSyncToggle').checked = autoSyncEnabled;
+            document.getElementById('cloudBackupBtn').disabled = !firebaseReady;
+            document.getElementById('cloudRestoreBtn').disabled = !firebaseReady;
+            if (firebaseReady) updateCloudStatus('online', '✅ Connected');
+            else if (firebaseConfig) updateCloudStatus('offline', '⚠️ Config saved but not connected');
+            else updateCloudStatus('offline', '⚪ Not configured');
+        }
+
+        document.getElementById('settingsBtn').onclick = ()=>{ previousPage=currentPage; navigate('settingsPage'); };
+        document.getElementById('backFromSettings').onclick = ()=>navigate(previousPage);
+        document.getElementById('exportBtn').onclick = ()=>{
+            const blob = new Blob([JSON.stringify({orders,tailors,prices,workLogs,designs})], {type:'application/json'});
+            const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='tailor-backup.json'; a.click(); showToast('✅ Exported');
+        };
+        document.getElementById('importBtn').onclick = ()=>document.getElementById('importFileInput').click();
+        document.getElementById('importFileInput').onchange = function(){
+            const f=this.files[0]; if(!f) return;
+            const r=new FileReader();
+            r.onload=e=>{
+                try{
+                    const d=JSON.parse(e.target.result);
+                    if(d.orders){ orders=d.orders; tailors=d.tailors||[]; prices=d.prices||[]; workLogs=d.workLogs||[]; designs=d.designs||[]; persist(); refreshHome(); showToast('✅ Imported'); }
+                    else showToast('❌ Invalid format');
+                }catch{ showToast('❌ JSON Error'); }
+            };
+            r.readAsText(f); this.value='';
+        };
+
+        document.getElementById('shareBackupBtn').onclick = ()=>{
+            const link = generateShareableLink();
+            document.getElementById('shareableLinkInput').value = link;
+            document.getElementById('shareableLinkInput').style.display = 'block';
+            document.getElementById('copyBackupBtn').style.display = 'inline-flex';
+            navigator.clipboard.writeText(link).then(()=>showToast('🔗 Link copied!')).catch(()=>showToast('🔗 Link generated'));
+        };
+        document.getElementById('copyBackupBtn').onclick = ()=>navigator.clipboard.writeText(document.getElementById('shareableLinkInput').value).then(()=>showToast('📋 Copied!'));
+
+        document.getElementById('saveFirebaseConfig').onclick = ()=>{
+            const raw = document.getElementById('firebaseConfigInput').value.trim();
+            if (!raw) { showToast('❌ Enter Firebase config'); return; }
+            try {
+                const config = JSON.parse(raw);
+                saveFirebaseConfigToStorage(config);
+                showToast('✅ Config saved');
+                initializeFirebaseIfConfigured();
+                document.getElementById('cloudBackupBtn').disabled = false;
+                document.getElementById('cloudRestoreBtn').disabled = false;
+            } catch { showToast('❌ Invalid JSON'); }
+        };
+        document.getElementById('testFirebaseConnection').onclick = async ()=>{
+            if (!firebaseConfig) { showToast('❌ Save config first'); return; }
+            updateCloudStatus('syncing', '🔄 Testing...');
+            try {
+                await initFirebase(firebaseConfig);
+                updateCloudStatus('online', '✅ Connected');
+                document.getElementById('cloudBackupBtn').disabled = false;
+                document.getElementById('cloudRestoreBtn').disabled = false;
+                showToast('✅ Realtime DB connected!');
+            } catch (e) {
+                updateCloudStatus('offline', '❌ Connection failed');
+                showToast('❌ Failed: ' + e.message);
+            }
+        };
+        document.getElementById('cloudBackupBtn').onclick = async ()=>{
+            if (!firebaseReady) { showToast('❌ DB not connected'); return; }
+            updateCloudStatus('syncing', '🔄 Uploading...');
+            try {
+                await syncToCloud();
+                updateCloudStatus('online', '✅ Synced at ' + new Date().toLocaleTimeString());
+                showToast('☁️ Cloud backup complete!');
+            } catch (e) {
+                updateCloudStatus('offline', '❌ Sync failed');
+                showToast('❌ Cloud backup failed');
+            }
+        };
+        document.getElementById('cloudRestoreBtn').onclick = async ()=>{
+            if (!firebaseReady) { showToast('❌ DB not connected'); return; }
+            if (!confirm('Restore all data from cloud? Current data will be replaced.')) return;
+            updateCloudStatus('syncing', '🔄 Downloading...');
+            try {
+                await restoreFromCloud();
+                updateCloudStatus('online', '✅ Restored');
+                refreshHome();
+                showToast('☁️ Data restored from cloud!');
+            } catch (e) {
+                updateCloudStatus('offline', '❌ Restore failed');
+                showToast('❌ No cloud backup found');
+            }
+        };
+        document.getElementById('autoSyncToggle').onchange = function(){
+            saveAutoSyncSetting(this.checked);
+            if (this.checked && !firebaseReady && firebaseConfig) initializeFirebaseIfConfigured();
+        };
+
+        document.getElementById('clearDataBtn').onclick = ()=>{ document.getElementById('clearConfirmInput').value=''; document.getElementById('clearConfirmBtn').disabled=true; openModal('clearConfirmOverlay'); };
+        document.getElementById('clearConfirmInput').oninput = function(){ document.getElementById('clearConfirmBtn').disabled = this.value!=='DELETE'; };
+        document.getElementById('clearConfirmBtn').onclick = ()=>{ if(document.getElementById('clearConfirmInput').value==='DELETE'){ orders=[]; tailors=[]; prices=[]; workLogs=[]; designs=[]; persist(); closeModal('clearConfirmOverlay'); showToast('🗑 Cleared'); refreshHome(); navigate('homePage'); } };
+        document.getElementById('clearCancelBtn').onclick = ()=>closeModal('clearConfirmOverlay');
+        document.getElementById('restoreCancelBtn').onclick = ()=>{ closeModal('restoreFromUrlOverlay'); clearBackupFromUrl(); };
+        document.getElementById('restoreConfirmBtn').onclick = ()=>{
+            const data = window._pendingRestoreData;
+            if (data && data.orders) { orders=data.orders; tailors=data.tailors||[]; prices=data.prices||[]; workLogs=data.workLogs||[]; designs=data.designs||[]; persist(); refreshHome(); showToast('✅ Data restored from link!'); }
+            closeModal('restoreFromUrlOverlay'); clearBackupFromUrl(); window._pendingRestoreData = null;
+        };
+
+        // ── HOME ──
+        function refreshHome() {
+            document.getElementById('totalOrdersCount').textContent = orders.length;
+            document.getElementById('activeOrdersCount').textContent = orders.filter(o=>status(o)!=='delivered').length;
+            renderOrders();
+        }
+        function esc(s){ const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+        function renderOrders(){
+            const cont = document.getElementById('ordersList');
+            const term = document.getElementById('homeSearch').value.trim().toLowerCase();
+            const active = orders.filter(o=>status(o)!=='delivered');
+            const filtered = term ? active.filter(o=>o.slipNumber.toLowerCase().includes(term)) : active;
+            document.getElementById('emptyHome').style.display = filtered.length?'none':'block';
+            if(!filtered.length){ cont.innerHTML=''; return; }
+            cont.innerHTML = filtered.map(o=>{
+                const st = status(o), img = o.attachedImage?`<img src="${esc(o.attachedImage)}" class="thumb" data-img="${esc(o.attachedImage)}" onerror="this.style.display='none'">`:'';
+                return `<div class="card order-card">
+                    <button class="edit-btn" data-slip="${esc(o.slipNumber)}">✏️</button>
+                    <div class="flex-row"><span class="slip-number">#${esc(o.slipNumber)}</span><span class="badge badge-${st}">${st.toUpperCase()}</span></div>
+                    <div class="info-row mt-2"><span>👤 ${esc(o.customerName)}</span><span>📱 ${esc(o.mobile)}</span></div>
+                    <div class="info-row"><span>Items: ${o.items.length}</span><span>Done: ${cntCompleted(o)}</span><span>Delivered: ${cntDelivered(o)}</span></div>
+                    <div class="info-row"><span>💰 Bill: ₹${o.totalBill.toFixed(2)}</span><span>Adv: ₹${(o.advancePayment||0).toFixed(2)}</span></div>
+                    <div style="font-size:0.7rem;color:var(--text-secondary);">📅 ${new Date(o.orderDate).toLocaleString()}</div>
+                    ${img}
+                </div>`;
+            }).join('');
+            cont.querySelectorAll('.edit-btn').forEach(b=>b.onclick=e=>{ e.stopPropagation(); openEdit(b.dataset.slip); });
+            cont.querySelectorAll('.thumb').forEach(i=>i.onclick=e=>{ e.stopPropagation(); openLightbox(i.dataset.img); });
+        }
+        document.getElementById('homeSearch').oninput = renderOrders;
+        document.getElementById('homeSearchClear').onclick = ()=>{ document.getElementById('homeSearch').value=''; renderOrders(); };
+            // ── NEW ORDER ──
+            function prepNewOrder(){
+                document.getElementById('newOrderForm').reset();
+                document.getElementById('noNumClothes').value='';
+                document.getElementById('noAdvance').value='0';
+                document.getElementById('noImageUrl').value='';
+                document.getElementById('noImageFile').value='';
+                const sel = document.getElementById('noDesignSelect');
+                sel.innerHTML = '<option value="">-- Select from saved designs --</option>';
+                designs.forEach(d=>sel.innerHTML+=`<option value="${esc(d.imageUrl)}">${esc(d.title)}</option>`);
+                if(selectedDesignUrl){ document.getElementById('noImageUrl').value=selectedDesignUrl; selectedDesignUrl=null; }
+            }
+            document.getElementById('noDesignSelect').onchange=function(){ if(this.value) document.getElementById('noImageUrl').value=this.value; };
+            document.getElementById('newOrderForm').onsubmit=function(e){
+                e.preventDefault();
+                const slip=document.getElementById('noSlip').value.trim(), name=document.getElementById('noName').value.trim(), mobile=document.getElementById('noMobile').value.trim();
+                const num=parseInt(document.getElementById('noNumClothes').value);
+                if(!slip||!name||!mobile||isNaN(num)||num<1) return showToast('❌ Fill required fields');
+                if(orders.some(o=>o.slipNumber.toLowerCase()===slip.toLowerCase())) return showToast('❌ Duplicate slip');
+                const bill=parseFloat(document.getElementById('noTotalBill').value)||0, adv=parseFloat(document.getElementById('noAdvance').value)||0;
+                let img = document.getElementById('noImageUrl').value.trim()||null;
+                const file=document.getElementById('noImageFile').files[0];
+                if(file){
+                    const r=new FileReader();
+                    r.onload=ev=>{ saveOrder(slip,name,mobile,num,bill,adv,ev.target.result); };
+                    r.readAsDataURL(file); return;
+                }
+                saveOrder(slip,name,mobile,num,bill,adv,img);
+            };
+            function saveOrder(slip,name,mobile,num,bill,adv,img){
+                const items = Array.from({length:num},()=>({completed:false,delivered:false}));
+                orders.unshift({ slipNumber:slip, customerName:name, mobile, numClothes:num, measurements:document.getElementById('noMeasurements').value.trim(), totalBill:bill, advancePayment:adv, items, payments:[], attachedImage:img, changeLog:[], deliveryLog:[], orderDate:new Date().toISOString() });
+                persist(); closeModal('newOrderModalOverlay'); showToast('✅ Order created'); refreshHome();
+            }
+            document.getElementById('noCancel').onclick = ()=>closeModal('newOrderModalOverlay');
+
+            // ── EDIT ORDER ──
+            function openEdit(slip){
+                const o = orders.find(x=>x.slipNumber===slip); if(!o) return;
+                document.getElementById('eoSlipHidden').value = o.slipNumber;
+                document.getElementById('eoSlip').value = o.slipNumber;
+                document.getElementById('eoName').value = o.customerName;
+                document.getElementById('eoMobile').value = o.mobile;
+                document.getElementById('eoNumClothes').value = o.numClothes;
+                document.getElementById('eoMeasurements').value = o.measurements||'';
+                document.getElementById('eoTotalBill').value = o.totalBill;
+                document.getElementById('eoAdvance').value = o.advancePayment||0;
+                document.getElementById('eoChangeNote').value = '';
+                openModal('editOrderModalOverlay');
+            }
+            document.getElementById('editOrderForm').onsubmit = function(e){
+                e.preventDefault();
+                const slip = document.getElementById('eoSlipHidden').value;
+                const o = orders.find(x=>x.slipNumber===slip); if(!o) return;
+                const note = document.getElementById('eoChangeNote').value.trim();
+                if(!note) return showToast('❌ Change note required');
+                const newNum = parseInt(document.getElementById('eoNumClothes').value)||1;
+                let items = o.items;
+                if(newNum>items.length) for(let i=items.length;i<newNum;i++) items.push({completed:false,delivered:false});
+                else items = items.slice(0,newNum);
+                o.customerName = document.getElementById('eoName').value.trim();
+                o.mobile = document.getElementById('eoMobile').value.trim();
+                o.numClothes = newNum;
+                o.measurements = document.getElementById('eoMeasurements').value.trim();
+                o.totalBill = parseFloat(document.getElementById('eoTotalBill').value)||0;
+                o.advancePayment = parseFloat(document.getElementById('eoAdvance').value)||0;
+                o.items = items;
+                o.changeLog.push({date:new Date().toISOString(), note});
+                persist(); closeModal('editOrderModalOverlay'); showToast('✅ Updated'); refreshHome();
+            };
+            document.getElementById('eoCancel').onclick = ()=>closeModal('editOrderModalOverlay');
+            // End of Part 3
+            // ── PROGRESS ──
+document.getElementById('progressSearchBtn').onclick = ()=>{
+    const slip = document.getElementById('progressSearch').value.trim();
+    if(!slip) return showToast('❌ Enter slip');
+    const o = orders.find(x=>x.slipNumber.toLowerCase()===slip.toLowerCase());
+    const res = document.getElementById('progressResult');
+    if(!o){ res.innerHTML='<div class="card text-center">❌ Not found</div>'; return; }
+    document.getElementById('progressSearch').value = '';
+    renderProgress(o,res);
+};
+function renderProgress(o,res){
+    const st = status(o);
+    if(st === 'delivered'){
+        res.innerHTML = `<div class="card"><strong>#${esc(o.slipNumber)}</strong> ${esc(o.customerName)} <span class="badge badge-delivered">DELIVERED</span><p class="mt-2" style="color:var(--success);font-weight:600;">✅ This order has already been delivered.</p></div>`;
+        return;
+    }
+    const items = o.items;
+    res.innerHTML = `<div class="card">
+        <strong>#${esc(o.slipNumber)}</strong> ${esc(o.customerName)} <span class="badge badge-${st}">${st.toUpperCase()}</span>
+        <p style="font-size:0.8rem;">${items.length} items | ${cntCompleted(o)} completed</p>
+        <ul class="checkbox-list" id="progList">${items.map((it,i)=>`<li class="${it.completed?'checked':''}" data-idx="${i}"><input type="checkbox" ${it.completed?'checked':''}><span>Item ${i+1}</span></li>`).join('')}</ul>
+        <button class="btn btn-primary btn-block mt-3" id="saveProg">💾 Save</button>
+    </div>`;
+    res.querySelectorAll('input').forEach(cb=>cb.onchange=function(){
+        const i=+this.parentElement.dataset.idx; items[i].completed=this.checked;
+        this.parentElement.classList.toggle('checked',this.checked);
+    });
+    res.querySelector('#saveProg').onclick = ()=>{ o.items=items; persist(); showToast('✅ Saved'); renderProgress(o,res); refreshHome(); };
+}
+
+// ── DELIVERY ──
+document.getElementById('deliverySearchBtn').onclick = ()=>{
+    const slip = document.getElementById('deliverySearch').value.trim();
+    if(!slip) return showToast('❌ Enter slip');
+    const o = orders.find(x=>x.slipNumber.toLowerCase()===slip.toLowerCase());
+    const res = document.getElementById('deliveryResult');
+    if(!o){ res.innerHTML='<div class="card text-center">❌ Not found</div>'; return; }
+    document.getElementById('deliverySearch').value = '';
+    renderDelivery(o,res);
+};
+function renderDelivery(o,res){
+    const ready = cntReady(o);
+    const due = o.totalBill - (o.advancePayment + o.payments.reduce((s,p)=>s+p.amount,0));
+    const dueDisplay = due <= 0 ? '<span style="color:var(--success);font-weight:700;">Full Paid</span>' : `<span style="color:var(--danger);">₹${due.toFixed(2)}</span>`;
+    res.innerHTML = `<div class="card">
+        <strong>#${esc(o.slipNumber)}</strong> ${esc(o.customerName)} <span class="badge badge-${status(o)}">${status(o).toUpperCase()}</span>
+        <div class="info-row mt-2"><span>Total Bill:</span><span>₹${o.totalBill.toFixed(2)}</span></div>
+        <div class="info-row"><span>Advance:</span><span>₹${(o.advancePayment||0).toFixed(2)}</span></div>
+        <div class="info-row" style="font-weight:700;"><span>Due Balance:</span>${dueDisplay}</div>
+        <p class="mt-2">📦 Ready for delivery: <strong>${ready}</strong></p>
+        ${ready>0?`
+            <label>Items delivering now</label><input type="number" id="delCount" min="1" max="${ready}" value="${ready}" class="mb-2">
+            <label>Amount paying now</label><input type="number" id="delPay" min="0" step="0.01" placeholder="Enter amount" class="mb-2">
+            <button class="btn btn-primary btn-block" id="confirmDel">✅ Confirm Delivery</button>
+        `:(status(o)==='delivered'?'<p style="color:var(--success);">✅ All delivered</p>':'<p style="color:var(--warning);">⚠️ No items ready</p>')}
+    </div>`;
+    const btn = res.querySelector('#confirmDel');
+    if(btn) btn.onclick = ()=>{
+        const cnt = parseInt(document.getElementById('delCount').value)||0, pay = parseFloat(document.getElementById('delPay').value)||0;
+        if(cnt<1||cnt>ready) return showToast('❌ Invalid count');
+        const deliveredNow = []; let d=0;
+        for(let i=0;i<o.items.length;i++){ if(o.items[i].completed&&!o.items[i].delivered&&d<cnt){ o.items[i].delivered=true; deliveredNow.push(i+1); d++; } }
+        if(pay>0) o.payments.push({amount:pay,date:new Date().toISOString()});
+        if(deliveredNow.length){ if(!o.deliveryLog) o.deliveryLog=[]; o.deliveryLog.push({date:new Date().toISOString(),items:deliveredNow,amountPaid:pay}); }
+        persist(); showToast('✅ Delivery recorded'); renderDelivery(o,res); refreshHome();
+    };
+}
+
+// ── DELIVERED HISTORY ──
+document.getElementById('historySearchBtn').onclick = ()=>{
+    const slip = document.getElementById('historySearch').value.trim();
+    if(!slip) return showToast('❌ Enter slip');
+    const o = orders.find(x=>x.slipNumber.toLowerCase()===slip.toLowerCase());
+    const res = document.getElementById('historyResult');
+    if(!o){ res.innerHTML='<div class="card text-center">❌ Not found</div>'; return; }
+    document.getElementById('historySearch').value = '';
+    renderHistory(o,res);
+};
+function renderHistory(o,res){
+    const logs = o.deliveryLog || [], allDelivered = o.items.filter(i=>i.delivered).map((_,i)=>i+1);
+    res.innerHTML = `<div class="card">
+        <strong>#${esc(o.slipNumber)}</strong> ${esc(o.customerName)} <span class="badge badge-${status(o)}">${status(o).toUpperCase()}</span>
+        <p class="mt-2"><strong>Total delivered: ${cntDelivered(o)} / ${o.items.length}</strong></p>
+        ${allDelivered.length?`<p>Items: ${allDelivered.join(', ')}</p>`:''}
+        <div class="divider"></div><h4>Delivery History</h4>
+        ${logs.length?logs.slice().reverse().map(log=>`<div style="background:#F9FAFB;padding:8px 12px;border-radius:12px;margin-bottom:6px;"><div style="font-size:0.7rem;color:var(--text-secondary);">📅 ${new Date(log.date).toLocaleString()}</div><div>Items: ${log.items.join(', ')}</div>${log.amountPaid>0?`<div>Paid: ₹${log.amountPaid.toFixed(2)}</div>`:''}</div>`).join(''):'<p style="font-size:0.8rem;">No records</p>'}
+    </div>`;
+}
+
+// ── DESIGNS ──
+let designTab = 'saved';
+function refreshDesigns(){
+    const cont = document.getElementById('designsTabContent');
+    if(designTab==='saved'){
+        if(!designs.length) cont.innerHTML='<div class="empty-state"><div class="icon">🖼️</div><p>No designs</p></div>';
+        else cont.innerHTML='<div class="grid-2">'+designs.map(d=>`<div class="design-card" data-url="${esc(d.imageUrl)}"><img src="${esc(d.imageUrl)}" onerror="this.style.display='none'"><div class="design-title">${esc(d.title)}</div></div>`).join('')+'</div>';
+        cont.querySelectorAll('.design-card').forEach(c=>c.onclick=()=>{ selectedDesignUrl=c.dataset.url; prepNewOrder(); openModal('newOrderModalOverlay'); });
+        cont.innerHTML+='<button class="btn btn-primary btn-block mt-3" id="addDesignBtn">➕ Add Design</button>';
+        document.getElementById('addDesignBtn').onclick=()=>{
+            const title=prompt('Design title:'); if(!title) return;
+            const url=prompt('Image URL (or cancel to upload):');
+            if(url&&url.trim()){ designs.unshift({id:genId(),title:title.trim(),imageUrl:url.trim(),date:new Date().toISOString()}); persist(); refreshDesigns(); showToast('✅ Saved'); }
+            else{ const inp=document.createElement('input'); inp.type='file'; inp.accept='image/*'; inp.onchange=function(){ if(this.files[0]){ const r=new FileReader(); r.onload=ev=>{ designs.unshift({id:genId(),title:title.trim(),imageUrl:ev.target.result,date:new Date().toISOString()}); persist(); refreshDesigns(); showToast('✅ Saved'); }; r.readAsDataURL(this.files[0]); } }; inp.click(); }
+        };
+    }else{
+        cont.innerHTML=`<input type="text" id="webKeyword" placeholder="Search keyword" class="mb-2"><button class="btn btn-primary btn-block mb-2" id="openGoogle">🔍 Google Images</button><div class="divider"></div><input type="url" id="webUrl" placeholder="Paste image URL" class="mb-2"><input type="text" id="webTitle" placeholder="Design title" class="mb-2"><button class="btn btn-outline btn-block" id="saveWeb">💾 Save</button>`;
+        document.getElementById('openGoogle').onclick=()=>window.open('https://www.google.com/search?tbm=isch&q='+encodeURIComponent(document.getElementById('webKeyword').value||'tailor'));
+        document.getElementById('saveWeb').onclick=()=>{ const u=document.getElementById('webUrl').value.trim(), t=document.getElementById('webTitle').value.trim(); if(!u||!t) return showToast('❌ Fill both'); designs.unshift({id:genId(),title:t,imageUrl:u,date:new Date().toISOString()}); persist(); showToast('✅ Saved'); designTab='saved'; document.querySelectorAll('.tab').forEach(tb=>tb.classList.toggle('active',tb.dataset.tab==='saved')); refreshDesigns(); };
+    }
+}
+document.querySelectorAll('.tab').forEach(tab=>tab.onclick=function(){ designTab=this.dataset.tab; document.querySelectorAll('.tab').forEach(tb=>tb.classList.toggle('active',tb.dataset.tab===designTab)); refreshDesigns(); });
+// End of Part 4
+            // ── TAILOR ──
+            function refreshTailor(){
+                const cont = document.getElementById('tailorContent');
+                cont.innerHTML = `
+                <div class="card"><strong>Add Tailor</strong><div class="flex-row mt-2"><input type="text" id="tName" placeholder="Name" style="flex:1"><button class="btn btn-primary btn-sm" id="addTailor">Add</button></div><div id="tailorList" class="mt-2 flex-row"></div></div>
+                <div class="card"><strong>Clothing Type & Price</strong><div class="flex-row mt-2"><input type="text" id="cType" placeholder="Type" style="flex:1"><input type="number" id="cPrice" placeholder="Price" min="0" step="0.01" style="width:90px"><button class="btn btn-primary btn-sm" id="setPrice">Set</button></div><div id="priceTable" class="mt-2"></div></div>
+                <div class="card"><strong>Daily Work</strong><select id="workTailor" class="mt-2 mb-2"><option value="">Select tailor</option></select><input type="date" id="workDate" value="${new Date().toISOString().slice(0,10)}" class="mb-2"><div id="workRows"></div><div id="workTotal" class="mt-2"></div><label>Paid Today</label><input type="number" id="workPaid" min="0" step="0.01" value="0" class="mb-2"><button class="btn btn-primary btn-block" id="saveWork">💾 Save</button></div>
+                <div class="card"><strong>Summary</strong><select id="sumTailor" class="mt-2 mb-2"><option value="">Select tailor</option></select><div id="sumContent"></div></div>
+                <button class="btn btn-outline btn-block mt-3" id="backTailor">← Back</button>`;
+                ['workTailor','sumTailor'].forEach(id=>document.getElementById(id).innerHTML='<option value="">Select tailor</option>'+tailors.map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join(''));
+                renderTailorList(); renderPriceTable(); updateWorkRows();
+                document.getElementById('addTailor').onclick=()=>{ const n=document.getElementById('tName').value.trim(); if(!n) return showToast('❌ Enter name'); tailors.push({id:genId(),name:n}); persist(); refreshTailor(); showToast('✅ Added'); };
+                document.getElementById('setPrice').onclick=()=>{ const type=document.getElementById('cType').value.trim(),pr=parseFloat(document.getElementById('cPrice').value); if(!type||isNaN(pr)||pr<0) return showToast('❌ Invalid'); const ex=prices.find(p=>p.clothingType.toLowerCase()===type.toLowerCase()); if(ex) ex.price=pr; else prices.push({clothingType:type,price:pr}); persist(); refreshTailor(); showToast('✅ Price set'); };
+                document.getElementById('workTailor').onchange=updateWorkRows;
+                document.getElementById('saveWork').onclick=saveWork;
+                document.getElementById('sumTailor').onchange=updateSummary;
+                document.getElementById('backTailor').onclick=()=>navigate('homePage');
+                updateSummary();
+            }
+            function renderTailorList(){ document.getElementById('tailorList').innerHTML=tailors.map(t=>`<span style="background:var(--accent-light);padding:4px 10px;border-radius:20px;font-size:0.75rem;">${esc(t.name)}</span>`).join(''); }
+            function renderPriceTable(){ const c=document.getElementById('priceTable'); if(!prices.length){ c.innerHTML='<p style="font-size:0.8rem;">No prices</p>'; return; } c.innerHTML='<table style="width:100%;font-size:0.8rem;">'+prices.map(p=>`<tr><td>${esc(p.clothingType)}</td><td>₹${p.price.toFixed(2)}</td><td><button class="btn btn-danger btn-sm" data-type="${esc(p.clothingType)}">✕</button></td></tr>`).join('')+'</table>'; c.querySelectorAll('.btn-danger').forEach(b=>b.onclick=()=>{ prices=prices.filter(p=>p.clothingType!==b.dataset.type); persist(); refreshTailor(); }); }
+            function updateWorkRows(){ const c=document.getElementById('workRows'); if(!c) return; if(!prices.length){ c.innerHTML=''; return; } c.innerHTML=prices.map((p,i)=>`<div class="flex-row" style="align-items:center;margin-bottom:6px;"><span style="flex:1;font-size:0.8rem;">${esc(p.clothingType)} (₹${p.price.toFixed(2)})</span><select class="wQty" data-idx="${i}" style="width:70px;">${Array.from({length:11},(_,n)=>`<option value="${n}">${n}</option>`).join('')}</select><span class="wEarn" style="width:60px;text-align:right;">₹0</span></div>`).join(''); c.querySelectorAll('.wQty').forEach(s=>s.onchange=()=>{ let total=0; c.querySelectorAll('.wQty').forEach(s2=>{ const idx=+s2.dataset.idx,qty=+s2.value||0; const earn=qty*prices[idx].price; total+=earn; s2.parentElement.querySelector('.wEarn').textContent='₹'+earn.toFixed(2); }); document.getElementById('workTotal').textContent='Total: ₹'+total.toFixed(2); }); }
+            function saveWork(){ const tid=document.getElementById('workTailor').value; if(!tid) return showToast('❌ Select tailor'); const date=document.getElementById('workDate').value,paid=parseFloat(document.getElementById('workPaid').value)||0; const entries=[]; let total=0; document.querySelectorAll('.wQty').forEach(s=>{ const idx=+s.dataset.idx,qty=+s.value||0; if(qty>0){ const earn=qty*prices[idx].price; total+=earn; entries.push({id:genId(),tailorId:tid,date:new Date(date).toISOString(),clothingType:prices[idx].clothingType,quantity:qty,rate:prices[idx].price,earnings:earn,amountPaid:0}); } }); if(!entries.length) return showToast('❌ No entries'); entries.forEach(e=>e.amountPaid=total>0?parseFloat((e.earnings/total*paid).toFixed(2)):0); const dist=entries.reduce((s,e)=>s+e.amountPaid,0); if(Math.abs(dist-paid)>0.01&&entries.length) entries[0].amountPaid+=parseFloat((paid-dist).toFixed(2)); workLogs.push(...entries); persist(); showToast('✅ Saved'); document.getElementById('workPaid').value=0; updateWorkRows(); updateSummary(); }
+            function updateSummary(){ const tid=document.getElementById('sumTailor').value,c=document.getElementById('sumContent'); if(!tid){ c.innerHTML='<p style="font-size:0.8rem;">Select tailor</p>'; return; } const logs=workLogs.filter(w=>w.tailorId===tid); const earned=logs.reduce((s,w)=>s+w.earnings,0),paid=logs.reduce((s,w)=>s+w.amountPaid,0); c.innerHTML=`<div class="flex-row" style="gap:12px;margin-bottom:10px;"><div style="flex:1;background:#F0FDF4;padding:10px;border-radius:12px;text-align:center;"><div style="font-weight:800;color:var(--success);">₹${earned.toFixed(2)}</div><div style="font-size:0.6rem;">Earned</div></div><div style="flex:1;background:#FEF2F2;padding:10px;border-radius:12px;text-align:center;"><div style="font-weight:800;color:var(--danger);">₹${paid.toFixed(2)}</div><div style="font-size:0.6rem;">Paid</div></div><div style="flex:1;background:#FFF7ED;padding:10px;border-radius:12px;text-align:center;"><div style="font-weight:800;color:var(--warning);">₹${(earned-paid).toFixed(2)}</div><div style="font-size:0.6rem;">Balance</div></div></div>${logs.length?`<table style="width:100%;font-size:0.7rem;"><tr style="border-bottom:2px solid var(--border);"><th>Date</th><th>Type</th><th>Qty</th><th>Rate</th><th>Earned</th><th>Paid</th></tr>${logs.slice().reverse().slice(0,20).map(w=>`<tr><td>${new Date(w.date).toLocaleDateString()}</td><td>${esc(w.clothingType)}</td><td>${w.quantity}</td><td>₹${w.rate.toFixed(2)}</td><td>₹${w.earnings.toFixed(2)}</td><td>₹${w.amountPaid.toFixed(2)}</td></tr>`).join('')}</table>`:'<p>No history</p>'}`; }
+
+            // ── CALCULATOR ──
+            let calc = { display:'0', operand:null, operator:null, waiting:false };
+            const calcDisplay = document.getElementById('calcDisplay');
+            document.getElementById('calcKeypad').innerHTML = [['C','⌫','÷','×'],['7','8','9','−'],['4','5','6','+'],['1','2','3','='],['0','.','']].flat().map(k=>{ if(!k) return '<div></div>'; let cls='btn'; if(['C','⌫'].includes(k)) cls+=' btn-danger'; else if(['÷','×','−','+','='].includes(k)) cls+=' btn-primary'; else cls+=' btn-outline'; return `<button class="${cls}" style="padding:14px;" data-key="${k}">${k}</button>`; }).join('');
+            function updateCalcDisplay(){ calcDisplay.textContent=calc.display; }
+            function calcInput(key){
+                if(key>='0'&&key<='9'||key==='.'){ if(calc.waiting){ calc.display=key; calc.waiting=false; } else calc.display=calc.display==='0'&&key!=='.'?key:calc.display+key; }
+                else if(key==='C'){ calc={display:'0',operand:null,operator:null,waiting:false}; }
+                else if(key==='⌫'){ calc.display=calc.display.length>1?calc.display.slice(0,-1):'0'; }
+                else if(['+','−','×','÷'].includes(key)){ if(calc.operator&&!calc.waiting){ const res=operate(calc.operator,calc.operand,parseFloat(calc.display)); calc.display=res.toString(); calc.operand=res; } else calc.operand=parseFloat(calc.display); calc.operator=key; calc.waiting=true; }
+                else if(key==='='){ if(calc.operator){ const res=operate(calc.operator,calc.operand,parseFloat(calc.display)); calc.display=res.toString(); calc.operand=null; calc.operator=null; calc.waiting=true; } }
+                updateCalcDisplay();
+            }
+            function operate(op,a,b){ switch(op){ case '+':return a+b; case '−':return a-b; case '×':return a*b; case '÷':return b!==0?a/b:'Error'; default:return b; } }
+            document.getElementById('calcKeypad').addEventListener('click',e=>{ const btn=e.target.closest('button'); if(!btn) return; calcInput(btn.dataset.key); });
+            document.getElementById('calcModalOverlay').addEventListener('click',function(e){ if(e.target===this) closeModal('calcModalOverlay'); });
+
+            // ── LIGHTBOX ──
+            const lb=document.getElementById('lightbox'),lbImg=document.getElementById('lightboxImg');
+            let zoom=1,panX=0,panY=0,lastTap=0,dragging=false,startX,startY,sX,sY;
+            function openLightbox(src){ lbImg.src=src; zoom=1; panX=panY=0; lbImg.style.transform='scale(1)'; lb.classList.add('open'); }
+            function closeLb(){ lb.classList.remove('open'); }
+            lb.onclick=e=>{ if(e.target===lb||e.target.id==='lightboxClose') closeLb(); };
+            document.getElementById('lightboxClose').onclick=closeLb;
+            lbImg.onclick=e=>{ e.stopPropagation(); const now=Date.now(); if(now-lastTap<300){ zoom=zoom===1?2.5:1; panX=panY=0; lbImg.style.transform=`scale(${zoom})`; } lastTap=now; };
+            lbImg.onpointerdown=e=>{ if(zoom<=1) return; dragging=true; startX=e.clientX; startY=e.clientY; sX=panX; sY=panY; lbImg.setPointerCapture(e.pointerId); };
+            lbImg.onpointermove=e=>{ if(!dragging) return; panX=sX+(e.clientX-startX); panY=sY+(e.clientY-startY); lbImg.style.transform=`scale(${zoom}) translate(${panX/zoom}px,${panY/zoom}px)`; };
+            lbImg.onpointerup=lbImg.onpointerleave=()=>{ dragging=false; };
+
+            ['newOrderModalOverlay','editOrderModalOverlay','clearConfirmOverlay','restoreFromUrlOverlay'].forEach(id=>document.getElementById(id).addEventListener('click',function(e){ if(e.target===this) closeModal(id); }));
+
+            // ── INIT ──
+            refreshHome();
+            refreshDesigns();
+            initializeFirebaseIfConfigured();
+            if (window._pendingRestoreData) setTimeout(()=>openModal('restoreFromUrlOverlay'), 500);
+            if('serviceWorker' in navigator){
+                const sw=new Blob(["self.addEventListener('install',e=>self.skipWaiting());self.addEventListener('activate',e=>e.waitUntil(clients.claim()));self.addEventListener('fetch',e=>e.respondWith(fetch(e.request).catch(()=>caches.match(e.request))));"],{type:'application/javascript'});
+                navigator.serviceWorker.register(URL.createObjectURL(sw)).catch(()=>{});
+            }
+        })();
+    </script>
+</body>
+</html>
