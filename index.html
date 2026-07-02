@@ -1051,27 +1051,7 @@ window.TailorApp = {
     };
     document.head.appendChild(script);
 })();
-        // ========== EXTERNAL FEATURE LOADER ==========
-// Expose key functions/objects globally so custom.js can use them
-window.TailorApp = {
-    orders: orders,
-    tailors: tailors,
-    prices: prices,
-    workLogs: workLogs,
-    designs: designs,
-    navigate: navigate,
-    showToast: showToast,
-    openModal: openModal,
-    closeModal: closeModal,
-    status: status,
-    cntCompleted: cntCompleted,
-    cntDelivered: cntDelivered,
-    cntReady: cntReady,
-    esc: esc,
-    persist: persist,
-    genId: genId,
-    refreshHome: refreshHome
-};
+        
 
 // Dynamically load custom features (if file exists)
 var customScript = document.createElement('script');
