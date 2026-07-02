@@ -1,13 +1,12 @@
-// ====== CUSTOM FEATURES + PREMIUM WHITE DYNAMIC ISLAND UI ======
+// ====== CUSTOM FEATURES + PREMIUM WHITE DYNAMIC ISLAND + READY PICKUP (DEBUGGED) ======
 (function() {
-    console.log('✅ custom.js loaded (White Island + Ready Pickup)');
+    console.log('✅ custom.js loaded (v2.1)');
 
     // ---------- DYNAMIC ISLAND UI (White, JioHotstar curve, lighting) ----------
     function injectDynamicIslandUI() {
-        // 1. Inject required CSS
+        // 1. Inject CSS (same as before, but I'll keep it for completeness)
         var style = document.createElement('style');
         style.textContent = `
-            /* ── White background, sky-blue bottom glow ── */
             body {
                 background: #FFFFFF !important;
                 padding-bottom: 100px !important;
@@ -25,11 +24,7 @@
                 pointer-events: none;
                 z-index: -1;
             }
-
-            /* Hide old bottom nav */
             .bottom-nav { display: none !important; }
-
-            /* ── Dynamic Island Container ── */
             .dynamic-island-container {
                 position: fixed;
                 bottom: 12px;
@@ -39,8 +34,6 @@
                 max-width: 440px;
                 z-index: 150;
             }
-
-            /* ── JioHotstar-style Curve (white, glowing) ── */
             .curve-decoration {
                 position: absolute;
                 bottom: -6px;
@@ -49,9 +42,7 @@
                 height: 70px;
                 background: #FFFFFF;
                 border-radius: 50% 50% 0 0 / 70% 70% 0 0;
-                box-shadow: 
-                    0 -4px 20px rgba(198,153,99,0.15),   /* gold glow */
-                    0 -2px 10px rgba(135,206,250,0.2);   /* subtle blue */
+                box-shadow: 0 -4px 20px rgba(198,153,99,0.15), 0 -2px 10px rgba(135,206,250,0.2);
                 z-index: -1;
             }
             .curve-decoration::after {
@@ -65,7 +56,6 @@
                 background: linear-gradient(to bottom, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.5) 40%, transparent 100%);
                 pointer-events: none;
             }
-            /* Lighting effect (like JioHotstar) on top edge of curve */
             .curve-glow-line {
                 position: absolute;
                 top: -2px;
@@ -77,8 +67,6 @@
                 border-radius: 50%;
                 z-index: 1;
             }
-
-            /* ── White Dynamic Island (the pill) ── */
             .dynamic-island {
                 display: flex;
                 align-items: center;
@@ -86,16 +74,11 @@
                 background: #FFFFFF;
                 border-radius: 34px;
                 padding: 6px 18px;
-                box-shadow: 
-                    0 8px 30px rgba(0,0,0,0.08),
-                    0 0 20px rgba(198,153,99,0.1),
-                    inset 0 1px 0 rgba(255,255,255,0.8);
+                box-shadow: 0 8px 30px rgba(0,0,0,0.08), 0 0 20px rgba(198,153,99,0.1), inset 0 1px 0 rgba(255,255,255,0.8);
                 position: relative;
                 height: 68px;
                 border: 1px solid rgba(198,153,99,0.15);
             }
-
-            /* Premium gold glow on island */
             .dynamic-island::after {
                 content: '';
                 position: absolute;
@@ -108,8 +91,6 @@
                 border-radius: 50%;
                 z-index: -1;
             }
-
-            /* Navigation Pill Items */
             .nav-pill-item {
                 display: flex;
                 flex-direction: column;
@@ -149,8 +130,6 @@
             .nav-pill-item.active .nav-pill-label {
                 color: #C69963;
             }
-
-            /* FAB inside island (gold) */
             .fab-pill {
                 width: 52px;
                 height: 52px;
@@ -173,7 +152,7 @@
         `;
         document.head.appendChild(style);
 
-        // 2. Build and inject dynamic island HTML
+        // 2. Build island HTML
         var islandContainer = document.createElement('div');
         islandContainer.className = 'dynamic-island-container';
         islandContainer.innerHTML = `
@@ -200,38 +179,45 @@
             </div>
         `;
         document.body.appendChild(islandContainer);
+        console.log('✅ Dynamic Island injected');
 
-        // 3. Attach navigation events (wait for TailorApp)
+        // 3. Navigation binding (with retry)
         function bindNavEvents() {
             var app = window.TailorApp;
             document.querySelectorAll('.nav-pill-item').forEach(item => {
                 item.addEventListener('click', function() {
-                    var pageId = this.dataset.page;
                     var pageMap = { home:'homePage', progress:'progressPage', delivery:'deliveryPage', designs:'designsPage' };
+                    var pageId = pageMap[this.dataset.page];
+                    console.log('🔄 Nav pill clicked: ' + pageId);
                     if (app) {
-                        app.navigate(pageMap[pageId]);
+                        app.navigate(pageId);
                         document.querySelectorAll('.nav-pill-item').forEach(n => n.classList.remove('active'));
                         this.classList.add('active');
-                    } else {
-                        // fallback (rare)
-                        if (typeof navigate === 'function') navigate(pageMap[pageId]);
+                    } else if (typeof navigate === 'function') {
+                        navigate(pageId);
                     }
                 });
             });
-            document.getElementById('fabPillBtn').addEventListener('click', function() {
-                if (app) {
-                    // Trigger new order modal
-                    app.openModal('newOrderModalOverlay');
-                    // Ensure prep happens
-                    if (typeof prepNewOrder === 'function') prepNewOrder();
-                } else {
-                    // fallback
-                    if (typeof prepNewOrder === 'function') prepNewOrder();
-                    if (typeof openModal === 'function') openModal('newOrderModalOverlay');
-                }
-            });
+            var fabBtn = document.getElementById('fabPillBtn');
+            if (fabBtn) {
+                fabBtn.addEventListener('click', function() {
+                    console.log('➕ FAB clicked');
+                    if (app) {
+                        app.openModal('newOrderModalOverlay');
+                        // call prep if exists
+                        if (typeof prepNewOrder === 'function') prepNewOrder();
+                    } else {
+                        if (typeof prepNewOrder === 'function') prepNewOrder();
+                        if (typeof openModal === 'function') openModal('newOrderModalOverlay');
+                    }
+                    // also blank advance field
+                    setTimeout(function() {
+                        var adv = document.getElementById('noAdvance');
+                        if (adv && adv.value === '0') adv.value = '';
+                    }, 100);
+                });
+            }
         }
-        // Try immediately, else retry
         if (window.TailorApp) {
             bindNavEvents();
         } else {
@@ -239,17 +225,24 @@
                 if (window.TailorApp) {
                     clearInterval(retryNav);
                     bindNavEvents();
+                    console.log('✅ Nav events bound');
                 }
             }, 200);
         }
     }
 
-    // ---------- READY FOR PICKUP FEATURE ----------
+    // ---------- READY FOR PICKUP FEATURE (with debugging) ----------
     function initReadyPickupFeature() {
         var app = window.TailorApp;
-        if (!app) { setTimeout(initReadyPickupFeature, 150); return; }
+        if (!app) {
+            console.warn('⏳ TailorApp not ready, retrying Ready Pickup...');
+            setTimeout(initReadyPickupFeature, 150);
+            return;
+        }
+        console.log('🔧 Setting up Ready for Pickup...');
+        console.log('📦 Current orders:', app.orders.length);
 
-        // Drawer item
+        // Add drawer item
         var drawer = document.getElementById('drawer');
         if (drawer && !document.querySelector('.drawer-item[data-action="readyPickup"]')) {
             var newItem = document.createElement('div');
@@ -257,14 +250,16 @@
             newItem.setAttribute('data-action', 'readyPickup');
             newItem.textContent = '📦 Ready for Pickup';
             newItem.addEventListener('click', function() {
+                console.log('📦 Ready Pickup drawer clicked');
                 drawer.classList.remove('open');
                 document.getElementById('drawerOverlay').classList.remove('open');
                 app.navigate('readyPickupPage');
             });
             drawer.appendChild(newItem);
+            console.log('✅ Drawer item added');
         }
 
-        // Page HTML
+        // Add page HTML if not present
         if (!document.getElementById('readyPickupPage')) {
             var lastPage = document.querySelector('.page:last-of-type');
             if (lastPage) {
@@ -273,30 +268,54 @@
                 newPage.id = 'readyPickupPage';
                 newPage.innerHTML = '<h3 style="margin-bottom:12px;font-weight:800;">📦 Ready for Pickup</h3><p style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:12px;">Orders that are ready but not yet delivered</p><div id="readyPickupList"></div><div class="empty-state" id="emptyReady"><div class="icon">📭</div><p>No orders waiting for pickup</p></div>';
                 lastPage.parentNode.insertBefore(newPage, lastPage.nextSibling);
+                console.log('✅ Ready Pickup page inserted');
+            } else {
+                console.error('❌ Cannot find last page to insert Ready Pickup page');
             }
         }
 
-        // Navigate override
+        // Override navigate
         var originalNavigate = app.navigate;
         app.navigate = function(pageId) {
+            console.log('🚗 navigate called with: ' + pageId);
             if (pageId === 'readyPickupPage') {
+                console.log('🎯 Ready Pickup override triggered');
                 document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
                 var pg = document.getElementById('readyPickupPage');
-                if (pg) pg.classList.add('active');
+                if (pg) {
+                    pg.classList.add('active');
+                    console.log('✅ readyPickupPage activated');
+                } else {
+                    console.error('❌ readyPickupPage element not found!');
+                }
                 window.scrollTo(0,0);
                 renderReadyPickup();
                 return;
             }
             originalNavigate(pageId);
         };
+        console.log('✅ Navigate overridden');
 
         function renderReadyPickup() {
+            console.log('🎨 renderReadyPickup called');
             var cont = document.getElementById('readyPickupList');
-            if (!cont) return;
-            var readyOrders = app.orders.filter(o => app.status(o) === 'ready');
+            if (!cont) {
+                console.error('❌ readyPickupList not found in DOM');
+                return;
+            }
+            var readyOrders = app.orders.filter(o => {
+                var s = app.status(o);
+                console.log('  ➡️ Order ' + o.slipNumber + ' status: ' + s);
+                return s === 'ready';
+            });
+            console.log('🔢 Ready orders count: ' + readyOrders.length);
             var emptyEl = document.getElementById('emptyReady');
             if (emptyEl) emptyEl.style.display = readyOrders.length ? 'none' : 'block';
-            if (!readyOrders.length) { cont.innerHTML = ''; return; }
+            if (!readyOrders.length) {
+                cont.innerHTML = '';
+                console.log('ℹ️ No ready orders, list cleared.');
+                return;
+            }
 
             cont.innerHTML = readyOrders.map(o => {
                 var due = o.totalBill - (o.advancePayment + (o.payments||[]).reduce((s,p) => s + p.amount, 0));
@@ -310,7 +329,7 @@
                     '<button class="btn btn-primary btn-sm btn-block mt-2 goto-delivery" data-slip="' + slipEsc + '">🚚 Go to Delivery</button>' +
                     '</div>';
             }).join('');
-
+            console.log('✅ Ready pickup list rendered');
             cont.querySelectorAll('.goto-delivery').forEach(btn => {
                 btn.addEventListener('click', function() {
                     var slip = this.getAttribute('data-slip');
@@ -323,6 +342,7 @@
     }
 
     // ---------- START EVERYTHING ----------
+    console.log('🚀 Starting custom features');
     injectDynamicIslandUI();
     initReadyPickupFeature();
 })();
