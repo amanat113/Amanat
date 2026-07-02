@@ -1,10 +1,10 @@
-// ====== CUSTOM FEATURES + PREMIUM WHITE DYNAMIC ISLAND + READY PICKUP (DEBUGGED) ======
+// ====== CUSTOM FEATURES + PREMIUM DYNAMIC ISLAND + READY PICKUP (FINAL) ======
 (function() {
-    console.log('✅ custom.js loaded (v2.1)');
+    console.log('✅ custom.js v4.0 – Final Professional Edition');
 
-    // ---------- DYNAMIC ISLAND UI (White, JioHotstar curve, lighting) ----------
+    // ---------- DYNAMIC ISLAND UI (White, JioHotstar curve, premium lighting) ----------
     function injectDynamicIslandUI() {
-        // 1. Inject CSS (same as before, but I'll keep it for completeness)
+        // Inject CSS
         var style = document.createElement('style');
         style.textContent = `
             body {
@@ -152,7 +152,7 @@
         `;
         document.head.appendChild(style);
 
-        // 2. Build island HTML
+        // Build island HTML
         var islandContainer = document.createElement('div');
         islandContainer.className = 'dynamic-island-container';
         islandContainer.innerHTML = `
@@ -181,36 +181,35 @@
         document.body.appendChild(islandContainer);
         console.log('✅ Dynamic Island injected');
 
-        // 3. Navigation binding (with retry)
+        // Bind navigation events (wait for TailorApp)
         function bindNavEvents() {
             var app = window.TailorApp;
-            document.querySelectorAll('.nav-pill-item').forEach(item => {
+            document.querySelectorAll('.nav-pill-item').forEach(function(item) {
                 item.addEventListener('click', function() {
                     var pageMap = { home:'homePage', progress:'progressPage', delivery:'deliveryPage', designs:'designsPage' };
                     var pageId = pageMap[this.dataset.page];
-                    console.log('🔄 Nav pill clicked: ' + pageId);
-                    if (app) {
+                    if (app && app.navigate) {
                         app.navigate(pageId);
-                        document.querySelectorAll('.nav-pill-item').forEach(n => n.classList.remove('active'));
-                        this.classList.add('active');
                     } else if (typeof navigate === 'function') {
                         navigate(pageId);
                     }
+                    document.querySelectorAll('.nav-pill-item').forEach(function(n) { n.classList.remove('active'); });
+                    this.classList.add('active');
                 });
             });
             var fabBtn = document.getElementById('fabPillBtn');
             if (fabBtn) {
                 fabBtn.addEventListener('click', function() {
-                    console.log('➕ FAB clicked');
-                    if (app) {
+                    if (app && app.openModal) {
+                        // call prep function if available
+                        if (app.prepNewOrder) app.prepNewOrder();
+                        else if (typeof prepNewOrder === 'function') prepNewOrder();
                         app.openModal('newOrderModalOverlay');
-                        // call prep if exists
-                        if (typeof prepNewOrder === 'function') prepNewOrder();
                     } else {
                         if (typeof prepNewOrder === 'function') prepNewOrder();
                         if (typeof openModal === 'function') openModal('newOrderModalOverlay');
                     }
-                    // also blank advance field
+                    // blank advance field
                     setTimeout(function() {
                         var adv = document.getElementById('noAdvance');
                         if (adv && adv.value === '0') adv.value = '';
@@ -218,6 +217,7 @@
                 });
             }
         }
+
         if (window.TailorApp) {
             bindNavEvents();
         } else {
@@ -225,100 +225,109 @@
                 if (window.TailorApp) {
                     clearInterval(retryNav);
                     bindNavEvents();
-                    console.log('✅ Nav events bound');
                 }
             }, 200);
         }
     }
 
-    // ---------- READY FOR PICKUP FEATURE (with debugging) ----------
+    // ---------- READY FOR PICKUP (Fully reliable implementation) ----------
     function initReadyPickupFeature() {
-        var app = window.TailorApp;
-        if (!app) {
-            console.warn('⏳ TailorApp not ready, retrying Ready Pickup...');
-            setTimeout(initReadyPickupFeature, 150);
-            return;
-        }
-        console.log('🔧 Setting up Ready for Pickup...');
-        console.log('📦 Current orders:', app.orders.length);
+        function setupWhenReady() {
+            var app = window.TailorApp;
+            if (!app) {
+                setTimeout(setupWhenReady, 100);
+                return;
+            }
+            console.log('🔧 Setting up Ready for Pickup...');
 
-        // Add drawer item
-        var drawer = document.getElementById('drawer');
-        if (drawer && !document.querySelector('.drawer-item[data-action="readyPickup"]')) {
-            var newItem = document.createElement('div');
-            newItem.className = 'drawer-item';
-            newItem.setAttribute('data-action', 'readyPickup');
-            newItem.textContent = '📦 Ready for Pickup';
-            newItem.addEventListener('click', function() {
-                console.log('📦 Ready Pickup drawer clicked');
-                drawer.classList.remove('open');
-                document.getElementById('drawerOverlay').classList.remove('open');
-                app.navigate('readyPickupPage');
-            });
-            drawer.appendChild(newItem);
-            console.log('✅ Drawer item added');
+            // Add drawer item (avoid duplicates)
+            var drawer = document.getElementById('drawer');
+            if (drawer && !document.querySelector('.drawer-item[data-action="readyPickup"]')) {
+                var newItem = document.createElement('div');
+                newItem.className = 'drawer-item';
+                newItem.setAttribute('data-action', 'readyPickup');
+                newItem.textContent = '📦 Ready for Pickup';
+                newItem.addEventListener('click', function() {
+                    console.log('📦 Ready Pickup clicked');
+                    // Close drawer
+                    drawer.classList.remove('open');
+                    var overlay = document.getElementById('drawerOverlay');
+                    if (overlay) overlay.classList.remove('open');
+                    // Show custom page directly (bypassing navigation)
+                    showReadyPickupPage(app);
+                });
+                drawer.appendChild(newItem);
+                console.log('✅ Drawer item added');
+            }
+
+            // Add page HTML if not already present
+            ensurePageExists();
+
+            // Also bind the original navigate to handle our custom page in case something else calls navigate('readyPickupPage')
+            var originalNavigate = app.navigate;
+            app.navigate = function(pageId) {
+                if (pageId === 'readyPickupPage') {
+                    showReadyPickupPage(app);
+                    return;
+                }
+                originalNavigate(pageId);
+            };
+            console.log('✅ Navigate overridden');
         }
 
-        // Add page HTML if not present
-        if (!document.getElementById('readyPickupPage')) {
+        function ensurePageExists() {
+            if (document.getElementById('readyPickupPage')) return;
+            var page = document.createElement('div');
+            page.className = 'page';
+            page.id = 'readyPickupPage';
+            page.innerHTML = '<h3 style="margin-bottom:12px;font-weight:800;">📦 Ready for Pickup</h3><p style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:12px;">Orders that are ready but not yet delivered</p><div id="readyPickupList"></div><div class="empty-state" id="emptyReady"><div class="icon">📭</div><p>No orders waiting for pickup</p></div>';
+            // Insert after the last existing page
             var lastPage = document.querySelector('.page:last-of-type');
             if (lastPage) {
-                var newPage = document.createElement('div');
-                newPage.className = 'page';
-                newPage.id = 'readyPickupPage';
-                newPage.innerHTML = '<h3 style="margin-bottom:12px;font-weight:800;">📦 Ready for Pickup</h3><p style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:12px;">Orders that are ready but not yet delivered</p><div id="readyPickupList"></div><div class="empty-state" id="emptyReady"><div class="icon">📭</div><p>No orders waiting for pickup</p></div>';
-                lastPage.parentNode.insertBefore(newPage, lastPage.nextSibling);
-                console.log('✅ Ready Pickup page inserted');
+                lastPage.parentNode.insertBefore(page, lastPage.nextSibling);
             } else {
-                console.error('❌ Cannot find last page to insert Ready Pickup page');
+                document.body.appendChild(page);
             }
+            console.log('✅ Ready Pickup page created');
         }
 
-        // Override navigate
-        var originalNavigate = app.navigate;
-        app.navigate = function(pageId) {
-            console.log('🚗 navigate called with: ' + pageId);
-            if (pageId === 'readyPickupPage') {
-                console.log('🎯 Ready Pickup override triggered');
-                document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-                var pg = document.getElementById('readyPickupPage');
-                if (pg) {
-                    pg.classList.add('active');
-                    console.log('✅ readyPickupPage activated');
-                } else {
-                    console.error('❌ readyPickupPage element not found!');
-                }
-                window.scrollTo(0,0);
-                renderReadyPickup();
-                return;
+        function showReadyPickupPage(app) {
+            // Hide all pages
+            document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('active'); });
+            var page = document.getElementById('readyPickupPage');
+            if (!page) {
+                ensurePageExists();
+                page = document.getElementById('readyPickupPage');
             }
-            originalNavigate(pageId);
-        };
-        console.log('✅ Navigate overridden');
+            page.classList.add('active');
+            window.scrollTo(0,0);
+            renderReadyPickup(app);
+        }
 
-        function renderReadyPickup() {
-            console.log('🎨 renderReadyPickup called');
+        function renderReadyPickup(app) {
+            console.log('🎨 renderReadyPickup called, total orders:', app.orders.length);
             var cont = document.getElementById('readyPickupList');
             if (!cont) {
-                console.error('❌ readyPickupList not found in DOM');
+                console.error('❌ readyPickupList missing');
                 return;
             }
-            var readyOrders = app.orders.filter(o => {
-                var s = app.status(o);
-                console.log('  ➡️ Order ' + o.slipNumber + ' status: ' + s);
-                return s === 'ready';
+            var readyOrders = app.orders.filter(function(o) {
+                var st = app.status(o);
+                console.log('  ➡️ ' + o.slipNumber + ' status: ' + st);
+                return st === 'ready';
             });
-            console.log('🔢 Ready orders count: ' + readyOrders.length);
+            console.log('🔢 Ready orders count:', readyOrders.length);
+
             var emptyEl = document.getElementById('emptyReady');
             if (emptyEl) emptyEl.style.display = readyOrders.length ? 'none' : 'block';
+
             if (!readyOrders.length) {
                 cont.innerHTML = '';
-                console.log('ℹ️ No ready orders, list cleared.');
                 return;
             }
 
-            cont.innerHTML = readyOrders.map(o => {
-                var due = o.totalBill - (o.advancePayment + (o.payments||[]).reduce((s,p) => s + p.amount, 0));
+            cont.innerHTML = readyOrders.map(function(o) {
+                var due = o.totalBill - (o.advancePayment + (o.payments||[]).reduce(function(s,p){ return s + p.amount; }, 0));
                 var slipEsc = app.esc(o.slipNumber);
                 return '<div class="card order-card">' +
                     '<div class="flex-row"><span class="slip-number">#' + slipEsc + '</span><span class="badge badge-ready">READY</span></div>' +
@@ -329,20 +338,26 @@
                     '<button class="btn btn-primary btn-sm btn-block mt-2 goto-delivery" data-slip="' + slipEsc + '">🚚 Go to Delivery</button>' +
                     '</div>';
             }).join('');
-            console.log('✅ Ready pickup list rendered');
-            cont.querySelectorAll('.goto-delivery').forEach(btn => {
+
+            // Attach delivery button events
+            cont.querySelectorAll('.goto-delivery').forEach(function(btn) {
                 btn.addEventListener('click', function() {
                     var slip = this.getAttribute('data-slip');
                     document.getElementById('deliverySearch').value = slip;
                     app.navigate('deliveryPage');
-                    setTimeout(() => document.getElementById('deliverySearchBtn').click(), 100);
+                    setTimeout(function() {
+                        var searchBtn = document.getElementById('deliverySearchBtn');
+                        if (searchBtn) searchBtn.click();
+                    }, 100);
                 });
             });
+            console.log('✅ Ready list rendered');
         }
+
+        setupWhenReady();
     }
 
     // ---------- START EVERYTHING ----------
-    console.log('🚀 Starting custom features');
     injectDynamicIslandUI();
     initReadyPickupFeature();
 })();
