@@ -1,31 +1,32 @@
-// ====== CUSTOM FEATURES – Tailor Shop Pro ======
+// ====== CUSTOM FEATURES – Tailor Shop Pro (with debug logs) ======
 (function() {
+    console.log('✅ custom.js loaded');
+
     function initCustomFeatures() {
         var app = window.TailorApp;
         if (!app) {
+            console.warn('TailorApp not ready, retrying...');
             setTimeout(initCustomFeatures, 100);
             return;
         }
 
-        // ----- 1. Add "Ready for Pickup" drawer item -----
+        // ----- 1. Drawer Item -----
         var drawer = document.getElementById('drawer');
-        if (drawer) {
-            // Avoid duplicate if already added
-            if (!document.querySelector('.drawer-item[data-action="readyPickup"]')) {
-                var newItem = document.createElement('div');
-                newItem.className = 'drawer-item';
-                newItem.setAttribute('data-action', 'readyPickup');
-                newItem.textContent = '📦 Ready for Pickup';
-                newItem.addEventListener('click', function() {
-                    drawer.classList.remove('open');
-                    document.getElementById('drawerOverlay').classList.remove('open');
-                    app.navigate('readyPickupPage');
-                });
-                drawer.appendChild(newItem);
-            }
+        if (drawer && !document.querySelector('.drawer-item[data-action="readyPickup"]')) {
+            var newItem = document.createElement('div');
+            newItem.className = 'drawer-item';
+            newItem.setAttribute('data-action', 'readyPickup');
+            newItem.textContent = '📦 Ready for Pickup';
+            newItem.addEventListener('click', function() {
+                drawer.classList.remove('open');
+                document.getElementById('drawerOverlay').classList.remove('open');
+                app.navigate('readyPickupPage');
+            });
+            drawer.appendChild(newItem);
+            console.log('✅ Drawer item added');
         }
 
-        // ----- 2. Add "Ready for Pickup" page HTML -----
+        // ----- 2. Page HTML -----
         if (!document.getElementById('readyPickupPage')) {
             var lastPage = document.querySelector('.page:last-of-type');
             if (lastPage) {
@@ -39,10 +40,11 @@
                     <div class="empty-state" id="emptyReady"><div class="icon">📭</div><p>No orders waiting for pickup</p></div>
                 `;
                 lastPage.parentNode.insertBefore(newPage, lastPage.nextSibling);
+                console.log('✅ Ready Pickup page added');
             }
         }
 
-        // ----- 3. Override navigate to handle the new page -----
+        // ----- 3. Override navigate -----
         var originalNavigate = app.navigate;
         app.navigate = function(pageId) {
             if (pageId === 'readyPickupPage') {
@@ -51,16 +53,22 @@
                 if (page) page.classList.add('active');
                 window.scrollTo(0,0);
                 renderReadyPickup();
+                console.log('✅ Navigated to Ready Pickup');
                 return;
             }
             originalNavigate(pageId);
         };
 
-        // ----- 4. Render function (shows all ready orders) -----
+        // ----- 4. Render function with debug -----
         function renderReadyPickup() {
             var cont = document.getElementById('readyPickupList');
             if (!cont) return;
+
+            console.log('🟢 Total orders:', app.orders.length);
+            console.log('🟢 Order statuses:', app.orders.map(o => ({ slip: o.slipNumber, status: app.status(o) })));
             var readyOrders = app.orders.filter(function(o) { return app.status(o) === 'ready'; });
+            console.log('🟢 Ready orders found:', readyOrders.length);
+
             var emptyEl = document.getElementById('emptyReady');
             if (emptyEl) emptyEl.style.display = readyOrders.length ? 'none' : 'block';
             if (!readyOrders.length) {
@@ -93,12 +101,14 @@
             });
         }
 
-        // ----- 5. Blank the Advance Payment field when New Order modal opens -----
+        // ----- 5. Blank advance field -----
         document.getElementById('fabBtn').addEventListener('click', function() {
-            // Wait for modal to appear and prepNewOrder to run
             setTimeout(function() {
                 var advInput = document.getElementById('noAdvance');
-                if (advInput) advInput.value = '';   // remove default 0
+                if (advInput && advInput.value === '0') {
+                    advInput.value = '';
+                    console.log('✅ Advance field cleared');
+                }
             }, 50);
         });
     }
