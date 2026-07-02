@@ -1005,19 +1005,14 @@ document.querySelectorAll('.tab').forEach(tab=>tab.onclick=function(){ designTab
                 const sw=new Blob(["self.addEventListener('install',e=>self.skipWaiting());self.addEventListener('activate',e=>e.waitUntil(clients.claim()));self.addEventListener('fetch',e=>e.respondWith(fetch(e.request).catch(()=>caches.match(e.request))));"],{type:'application/javascript'});
                 navigator.serviceWorker.register(URL.createObjectURL(sw)).catch(()=>{});
             }
-        // ─────────────────────────────────────────────
-// EXTERNAL EXTENSION LOADER (Professional)
-// Expose core APIs to global scope for custom.js
-// ─────────────────────────────────────────────
+        
+// ========== CUSTOM FEATURE LOADER ==========
 window.TailorApp = {
-    // Data stores (live references)
     orders: orders,
     tailors: tailors,
     prices: prices,
     workLogs: workLogs,
     designs: designs,
-
-    // Core utility functions
     navigate: navigate,
     showToast: showToast,
     openModal: openModal,
@@ -1030,29 +1025,18 @@ window.TailorApp = {
     persist: persist,
     genId: genId,
     refreshHome: refreshHome,
-    prepNewOrder: typeof prepNewOrder === 'function' ? prepNewOrder : null,
-    // Additional helpers for custom extensions
-    getOrders: function() { return orders; },
-    getTailors: function() { return tailors; },
-    saveAll: function() { persist(); }
+    prepNewOrder: typeof prepNewOrder === 'function' ? prepNewOrder : null
 };
 
-// Gracefully load custom features from external file
-(function loadCustomScript() {
+// Load custom features
+(function() {
     var script = document.createElement('script');
     script.src = './custom.js';
-    script.async = true;
-    script.onload = function() {
-        console.log('✅ custom.js loaded successfully');
-    };
     script.onerror = function() {
-        console.info('ℹ️ custom.js not found – running base app only.');
-        // Optional: if file is missing, no error shown to user
+        console.log('custom.js not found - running base app');
     };
     document.head.appendChild(script);
-})();
-        
-
+})();       
 // Dynamically load custom features (if file exists)
 var customScript = document.createElement('script');
 customScript.src = './custom.js';
